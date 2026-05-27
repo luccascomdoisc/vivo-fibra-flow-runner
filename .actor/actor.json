@@ -1,0 +1,27 @@
+{
+  "actorSpecification": 1,
+  "name": "vivo-fibra-flow-runner",
+  "title": "Vivo Fibra - Flow Runner",
+  "description": "Executa o funil de contratacao Vivo Fibra (Z->F) e reporta em qual checkpoint quebrou.",
+  "version": "0.1",
+  "buildTag": "latest",
+  "input": "./input_schema.json",
+  "dockerfile": "../Dockerfile",
+  "storages": {
+    "dataset": {
+      "actorSpecification": 1,
+      "title": "Relatorio de execucao do fluxo",
+      "views": {
+        "resumo": {
+          "title": "Resumo por execucao",
+          "transformation": {
+            "fields": ["runStartedAt", "failedAt", "leadId", "topazScore", "error"]
+          },
+          "display": {
+            "component": "table"
+          }
+        }
+      }
+    }
+  }
+}

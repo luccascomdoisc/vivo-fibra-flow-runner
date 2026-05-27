@@ -1,0 +1,47 @@
+{
+  "title": "Vivo Fibra Flow Runner - Input",
+  "type": "object",
+  "schemaVersion": 1,
+  "properties": {
+    "scenario": {
+      "title": "Cenario de teste",
+      "type": "object",
+      "description": "Dados gerados pelo n8n (CPF valido mod-11, Faker para nome/celular, CEP do pool com cobertura).",
+      "editor": "json",
+      "prefill": {
+        "nome": "Teste Teste",
+        "celular": "(11) 98175-0915",
+        "cpf": "738.854.920-08",
+        "dataNascimento": "01/01/1997",
+        "email": "teste@teste.com.br",
+        "cep": "05427-010",
+        "numeroResidencia": "111",
+        "complemento": "1",
+        "andar": "1",
+        "pontoReferencia": "1",
+        "tipoImovel": "Edificio"
+      }
+    },
+    "entry": {
+      "title": "Entrada do cadastro",
+      "type": "object",
+      "description": "productsIds e promotion do plano alvo. Se omitidos, o checkpoint Z tenta resolver pela link.href do catalogo.",
+      "editor": "json",
+      "prefill": {
+        "productsIds": "235",
+        "promotion": "600"
+      }
+    },
+    "config": {
+      "title": "Configuracao de execucao",
+      "type": "object",
+      "editor": "json",
+      "prefill": {
+        "timeoutPorStepMs": 30000,
+        "capturarScreenshots": true,
+        "headless": true
+      }
+    }
+  },
+  "required": ["scenario"]
+}
