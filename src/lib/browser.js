@@ -1,22 +1,20 @@
 import { chromium } from 'playwright';
 import { Actor, log } from 'apify';
-
-// UA de Chrome desktop em Linux (mesma plataforma do container Apify, p/ nao divergir
-// dos client-hints Sec-CH-UA-Platform). O default do Playwright headless contem
-// "HeadlessChrome", token que o Akamai bloqueia na borda -> causa do "Access Denied".
-const DESKTOP_UA =
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+import { newInjectedContext } from 'fingerprint-injector';
 
 /**
- * Sobe um Chromium real com stealth leve. O modo de proxy e configuravel via input
- * (config.proxyMode) para testar empiricamente qual rota alcanca a Vivo:
+ * Sobe um Chromium real com fingerprint INJETADO e coerente. O modo de proxy e
+ * configuravel via input (config.proxyMode):
  *  - 'none'           -> sem proxy (IP direto do Actor na Apify). Mais barato.
- *  - 'datacenter'     -> Apify Proxy datacenter (grupo padrao, incluso na maioria dos planos).
- *  - 'residential-br' -> Apify Proxy residencial, countryCode BR (premium; pode nao estar habilitado).
+ *  - 'datacenter'     -> Apify Proxy datacenter (grupo padrao).
+ *  - 'residential-br' -> Apify Proxy residencial, countryCode BR.
  *  - 'residential-auto' -> Apify Proxy residencial sem pais fixo.
  *
- * Stealth leve basta: a Vivo Fibra nao tem Cloudflare nem reCAPTCHA (confirmado no HAR);
- * o unico anti-bot e o token Tsource, gerado pelo proprio JS da pagina.
+ * loja.vivo.com.br esta atras do Akamai Bot Manager. Confirmado empiricamente: Playwright
+ * cru (UA setado na mao, sem casar com Sec-CH-UA, sinais de headless) toma "Access Denied"
+ * (403) em qualquer IP/proxy; ja o apify/rag-web-browser (que injeta fingerprint via
+ * header-generator) pega a mesma URL com 200. Por isso usamos fingerprint-injector:
+ * UA + Sec-CH-UA + navigator + webgl etc. todos consistentes (Windows/Chrome desktop).
  */
 export async function launchBrowser({ headless = true, proxyMode = 'none' } = {}) {
   const proxy = await resolveProxy(proxyMode);
@@ -31,17 +29,18 @@ export async function launchBrowser({ headless = true, proxyMode = 'none' } = {}
     ],
   });
 
-  const context = await browser.newContext({
-    locale: 'pt-BR',
-    timezoneId: 'America/Sao_Paulo',
-    viewport: { width: 1366, height: 900 },
-    userAgent: DESKTOP_UA,
-    extraHTTPHeaders: { 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8' },
-  });
-
-  // Stealth basico: navigator.webdriver nao deve ser true.
-  await context.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  const context = await newInjectedContext(browser, {
+    fingerprintOptions: {
+      devices: ['desktop'],
+      operatingSystems: ['windows'],
+      browsers: [{ name: 'chrome', minVersion: 119 }],
+      locales: ['pt-BR'],
+    },
+    newContextOptions: {
+      locale: 'pt-BR',
+      timezoneId: 'America/Sao_Paulo',
+      viewport: { width: 1366, height: 900 },
+    },
   });
 
   const page = await context.newPage();
