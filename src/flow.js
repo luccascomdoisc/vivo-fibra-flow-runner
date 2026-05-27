@@ -2,6 +2,7 @@ import { log } from 'apify';
 import { emptyResults, buildOutput } from './lib/report.js';
 import { launchBrowser } from './lib/browser.js';
 import { attachNetworkCapture } from './lib/network.js';
+import { captureFailureContext } from './lib/screenshot.js';
 import { runZ } from './checkpoints/z-catalogo.js';
 import { runA } from './checkpoints/a-cadastro.js';
 import { runB } from './checkpoints/b-dados.js';
@@ -63,6 +64,13 @@ export async function runFlow(input) {
       Object.assign(byId[id], res);
       log.info(`Checkpoint ${id}: ${res.status} (${res.durationMs}ms) ${res.detalhe ?? ''}`);
       if (res.status === 'fail') {
+        // Garante evidencia da tela que quebrou (CA-04) mesmo que o checkpoint tenha
+        // falhado antes do seu proprio screenshot, e despeja URL/titulo/texto no relatorio.
+        const diag = await captureFailureContext(page, id, config.capturarScreenshots).catch(() => null);
+        if (diag) {
+          if (!byId[id].screenshotUrl) byId[id].screenshotUrl = diag.screenshotUrl;
+          byId[id].detalhe = `${byId[id].detalhe ?? ''} || url=${diag.url} | title=${diag.title} | tela="${diag.snippet}"`;
+        }
         state.error = `Falha no checkpoint ${id}: ${res.detalhe ?? ''}`;
         break; // os checkpoints seguintes permanecem 'skipped'
       }

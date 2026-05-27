@@ -17,3 +17,31 @@ export async function captureScreenshot(page, cpId, enabled = true) {
     return null;
   }
 }
+
+/**
+ * Coleta evidencia da tela que quebrou: screenshot + URL final (pos-redirect) +
+ * titulo + trecho do texto visivel. Usado pelo orquestrador quando um checkpoint
+ * falha sem ter capturado seu proprio screenshot — sem isso a falha sai "cega"
+ * (so dataset, sem acesso ao log do run).
+ */
+export async function captureFailureContext(page, cpId, enabled = true) {
+  const out = { screenshotUrl: null, url: null, title: null, snippet: null };
+  try {
+    out.url = page.url();
+  } catch {
+    /* page pode estar fechada */
+  }
+  try {
+    out.title = await page.title();
+  } catch {
+    /* opcional */
+  }
+  try {
+    const text = await page.locator('body').innerText({ timeout: 3000 });
+    out.snippet = text.replace(/\s+/g, ' ').trim().slice(0, 800);
+  } catch {
+    /* opcional */
+  }
+  out.screenshotUrl = await captureScreenshot(page, `${cpId}-fail`, enabled).catch(() => null);
+  return out;
+}
