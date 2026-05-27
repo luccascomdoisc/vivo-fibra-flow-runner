@@ -23,6 +23,7 @@ export async function runFlow(input) {
     timeoutPorStepMs: input.config?.timeoutPorStepMs ?? 30000,
     capturarScreenshots: input.config?.capturarScreenshots ?? true,
     headless: input.config?.headless ?? true,
+    proxyMode: input.config?.proxyMode ?? 'none',
   };
 
   const results = emptyResults();
@@ -41,7 +42,7 @@ export async function runFlow(input) {
   // ---- Browser: A..F ----
   let browser;
   try {
-    const launched = await launchBrowser({ headless: config.headless });
+    const launched = await launchBrowser({ headless: config.headless, proxyMode: config.proxyMode });
     browser = launched.browser;
     const { page } = launched;
     const net = attachNetworkCapture(page);

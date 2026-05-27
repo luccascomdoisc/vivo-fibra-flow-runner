@@ -35,12 +35,13 @@
     "config": {
       "title": "Configuracao de execucao",
       "type": "object",
-      "description": "Parametros de execucao: timeout por step (ms), captura de screenshots e modo headless.",
+      "description": "Parametros de execucao: timeout por step (ms), captura de screenshots, modo headless e proxyMode (none | datacenter | residential-br | residential-auto).",
       "editor": "json",
       "prefill": {
         "timeoutPorStepMs": 30000,
         "capturarScreenshots": true,
-        "headless": true
+        "headless": true,
+        "proxyMode": "none"
       }
     }
   },
