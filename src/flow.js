@@ -30,7 +30,13 @@ export async function runFlow(input) {
 
   const results = emptyResults();
   const byId = Object.fromEntries(results.map((r) => [r.id, r]));
-  const state = { leadId: null, orderNumber: null, topazScore: null, error: null };
+  const state = {
+    leadId: null,
+    orderNumber: null,
+    topazScore: null,
+    error: null,
+    debug: { proxyMode: config.proxyMode, userAgent: null, warmup: null },
+  };
 
   // ---- Checkpoint Z (HTTP, sem browser) ----
   const z = await runZ({ entry, config });
@@ -49,8 +55,10 @@ export async function runFlow(input) {
     const { page } = launched;
     const net = attachNetworkCapture(page);
 
+    state.debug.userAgent = await page.evaluate(() => navigator.userAgent).catch(() => null);
+
     // Warm-up anti-Akamai antes de tocar no deep-link de cadastro (ver browser.js).
-    if (config.warmup) await warmUpAkamai(page, { timeout: config.timeoutPorStepMs });
+    if (config.warmup) state.debug.warmup = await warmUpAkamai(page, { timeout: config.timeoutPorStepMs });
 
     const ctx = { page, net, scenario, entry, entryUrl: z.entryUrl, config, state };
 

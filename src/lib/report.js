@@ -22,6 +22,7 @@ export function buildOutput({
   topazScore = null,
   error = null,
   scenario,
+  debug = null,
 }) {
   return {
     runStartedAt,
@@ -36,5 +37,6 @@ export function buildOutput({
     orderNumber,
     topazScore,
     error,
+    debug,
   };
 }

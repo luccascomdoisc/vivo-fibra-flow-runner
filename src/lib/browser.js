@@ -1,6 +1,12 @@
 import { chromium } from 'playwright';
 import { Actor, log } from 'apify';
 
+// UA de Chrome desktop em Linux (mesma plataforma do container Apify, p/ nao divergir
+// dos client-hints Sec-CH-UA-Platform). O default do Playwright headless contem
+// "HeadlessChrome", token que o Akamai bloqueia na borda -> causa do "Access Denied".
+const DESKTOP_UA =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
 /**
  * Sobe um Chromium real com stealth leve. O modo de proxy e configuravel via input
  * (config.proxyMode) para testar empiricamente qual rota alcanca a Vivo:
@@ -29,6 +35,8 @@ export async function launchBrowser({ headless = true, proxyMode = 'none' } = {}
     locale: 'pt-BR',
     timezoneId: 'America/Sao_Paulo',
     viewport: { width: 1366, height: 900 },
+    userAgent: DESKTOP_UA,
+    extraHTTPHeaders: { 'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8' },
   });
 
   // Stealth basico: navigator.webdriver nao deve ser true.
@@ -49,22 +57,27 @@ export async function launchBrowser({ headless = true, proxyMode = 'none' } = {}
  * o fluxo — se o warm-up falhar, o checkpoint A ainda tenta e reporta o que achar.
  */
 export async function warmUpAkamai(page, { timeout = 30000 } = {}) {
+  const diag = { status: null, title: null, abck: false, error: null };
   try {
-    await page.goto('https://loja.vivo.com.br/', {
+    const resp = await page.goto('https://loja.vivo.com.br/', {
       waitUntil: 'domcontentloaded',
       timeout,
     });
+    diag.status = resp?.status() ?? null;
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
     // Interacao leve: o sensor Akamai coleta eventos de mouse/movimento para validar.
     await page.mouse.move(220, 240).catch(() => {});
     await page.mouse.move(480, 520).catch(() => {});
     await page.waitForTimeout(2500);
+    diag.title = await page.title().catch(() => null);
     const cookies = await page.context().cookies('https://loja.vivo.com.br').catch(() => []);
-    const abck = cookies.find((c) => c.name === '_abck');
-    log.info(`Warm-up Akamai concluido (_abck ${abck ? 'presente' : 'ausente'}).`);
+    diag.abck = cookies.some((c) => c.name === '_abck');
+    log.info(`Warm-up Akamai: status=${diag.status} title="${diag.title}" _abck=${diag.abck}`);
   } catch (e) {
+    diag.error = e.message;
     log.warning(`Warm-up Akamai falhou (seguindo mesmo assim): ${e.message}`);
   }
+  return diag;
 }
 
 /** Resolve a config de proxy do Playwright a partir do modo escolhido (undefined = sem proxy). */
