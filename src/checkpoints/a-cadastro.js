@@ -16,6 +16,7 @@ export async function runA(ctx) {
     await page.goto(entryUrl, {
       waitUntil: 'domcontentloaded',
       timeout: config.timeoutPorStepMs,
+      referer: 'https://loja.vivo.com.br/',
     });
     await waitForText(page, ANCHORS.A, config.timeoutPorStepMs);
     screenshotUrl = await captureScreenshot(page, 'A', config.capturarScreenshots);

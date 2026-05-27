@@ -1,6 +1,6 @@
 import { log } from 'apify';
 import { emptyResults, buildOutput } from './lib/report.js';
-import { launchBrowser } from './lib/browser.js';
+import { launchBrowser, warmUpAkamai } from './lib/browser.js';
 import { attachNetworkCapture } from './lib/network.js';
 import { captureFailureContext } from './lib/screenshot.js';
 import { runZ } from './checkpoints/z-catalogo.js';
@@ -25,6 +25,7 @@ export async function runFlow(input) {
     capturarScreenshots: input.config?.capturarScreenshots ?? true,
     headless: input.config?.headless ?? true,
     proxyMode: input.config?.proxyMode ?? 'none',
+    warmup: input.config?.warmup ?? true,
   };
 
   const results = emptyResults();
@@ -47,6 +48,10 @@ export async function runFlow(input) {
     browser = launched.browser;
     const { page } = launched;
     const net = attachNetworkCapture(page);
+
+    // Warm-up anti-Akamai antes de tocar no deep-link de cadastro (ver browser.js).
+    if (config.warmup) await warmUpAkamai(page, { timeout: config.timeoutPorStepMs });
+
     const ctx = { page, net, scenario, entry, entryUrl: z.entryUrl, config, state };
 
     const sequence = [

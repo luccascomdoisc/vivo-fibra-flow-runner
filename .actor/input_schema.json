@@ -35,13 +35,14 @@
     "config": {
       "title": "Configuracao de execucao",
       "type": "object",
-      "description": "Parametros de execucao: timeout por step (ms), captura de screenshots, modo headless e proxyMode (none | datacenter | residential-br | residential-auto).",
+      "description": "Parametros de execucao: timeout por step (ms), captura de screenshots, modo headless, proxyMode (none | datacenter | residential-br | residential-auto) e warmup (visita loja.vivo.com.br antes do deep-link p/ passar o Akamai).",
       "editor": "json",
       "prefill": {
         "timeoutPorStepMs": 30000,
         "capturarScreenshots": true,
         "headless": true,
-        "proxyMode": "none"
+        "proxyMode": "none",
+        "warmup": true
       }
     }
   },
