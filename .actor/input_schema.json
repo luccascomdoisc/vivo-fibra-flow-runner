@@ -35,6 +35,7 @@
     "config": {
       "title": "Configuracao de execucao",
       "type": "object",
+      "description": "Parametros de execucao: timeout por step (ms), captura de screenshots e modo headless.",
       "editor": "json",
       "prefill": {
         "timeoutPorStepMs": 30000,
