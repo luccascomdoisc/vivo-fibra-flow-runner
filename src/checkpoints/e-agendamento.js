@@ -21,19 +21,70 @@ export async function runE(ctx) {
 
   try {
     await waitForText(page, ANCHORS.E, config.timeoutPorStepMs);
-    screenshotUrl = await captureScreenshot(page, 'E', config.capturarScreenshots);
 
     const selecionados = await selecionarDropdownsEmSequencia(page, notas);
     await escolherPeriodo(page, notas, { indice: 0 });
     await escolherPeriodo(page, notas, { indice: 1 });
+    const termosOk = await aceitarTermos(page, notas);
+
+    // Screenshot DEPOIS de preencher: evidencia o estado real do agendamento
+    // (dropdowns, periodos e checkbox de termos) para validar o submit em F.
+    screenshotUrl = await captureScreenshot(page, 'E', config.capturarScreenshots);
 
     const btn = page.getByText('Concluir pedido', { exact: false }).first();
     await btn.waitFor({ state: 'visible', timeout: config.timeoutPorStepMs });
 
-    return makeResult('ok', start, screenshotUrl, `agendamento: ${selecionados} dropdowns; ${notas.join(' | ') || 'ok'}`);
+    return makeResult(
+      'ok',
+      start,
+      screenshotUrl,
+      `dropdowns=${selecionados}; termos=${termosOk ? 'ok' : 'falhou'}; ${notas.join(' | ') || 'periodos ok'}`,
+    );
   } catch (e) {
     return makeResult('fail', start, screenshotUrl, `erro: ${e.message}`);
   }
+}
+
+/**
+ * Marca o checkbox obrigatorio "Estou ciente e concordo com os termos e condicoes".
+ * E o passo que habilita "Concluir pedido" (a gravacao confirma um clique nesse
+ * checkbox imediatamente antes do submit). Componente custom: tentamos role, depois
+ * o quadradinho a esquerda do texto, sem nunca clicar no link "termos e condicoes".
+ */
+async function aceitarTermos(page, notas) {
+  const termo = page.getByText('Estou ciente e concordo', { exact: false }).first();
+  try {
+    await termo.waitFor({ state: 'visible', timeout: 5000 });
+    await termo.scrollIntoViewIfNeeded();
+  } catch {
+    notas.push('texto de termos nao encontrado');
+    return false;
+  }
+
+  // 1) checkbox semantico, se existir.
+  try {
+    const cb = page.getByRole('checkbox').first();
+    if ((await cb.count()) > 0) {
+      await cb.check({ timeout: 2000 });
+      if (await cb.isChecked().catch(() => false)) return true;
+    }
+  } catch {
+    /* tenta proxima estrategia */
+  }
+
+  // 2) clica no quadradinho a esquerda do texto (componente custom estilizado).
+  try {
+    const box = await termo.boundingBox();
+    if (box) {
+      await page.mouse.click(box.x - 16, box.y + box.height / 2);
+      return true;
+    }
+  } catch {
+    /* tenta proxima estrategia */
+  }
+
+  notas.push('checkbox de termos NAO marcado');
+  return false;
 }
 
 /** Abre cada dropdown da secao e escolhe a 1a opcao disponivel. */
