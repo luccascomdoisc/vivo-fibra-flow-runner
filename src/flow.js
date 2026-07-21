@@ -69,8 +69,23 @@ export async function runFlow(input) {
     // Navega e detecta qual fluxo a Vivo serviu (novo checkout vs contingencia).
     // A entryUrl continua a mesma: quando o fluxo novo esta ativo, a Vivo redireciona
     // server-side para internet.vivo.com.br/checkouts/fibra/?id=...&offer=...
-    const det = await navigateAndDetect(page, z.entryUrl, { timeout: config.timeoutPorStepMs });
+    const det = await navigateAndDetect(page, z.entryUrl, {
+      timeout: config.timeoutPorStepMs,
+      fallbackUrl: entry.checkoutUrl ?? null,
+    });
     state.debug.flow = { detected: det.flow, marker: det.marker, urlNovo: det.urlNovo };
+
+    if (det.flow === 'bloqueado_akamai') {
+      const diag = await captureFailureContext(page, 'A', config.capturarScreenshots).catch(() => null);
+      Object.assign(byId.A, {
+        status: 'fail',
+        durationMs: 0,
+        screenshotUrl: diag?.screenshotUrl ?? null,
+        detalhe: `BLOQUEIO ANTI-BOT (Akamai Access Denied) — nao e instabilidade do funil. Sugestao: retry com proxyMode residential-br. || url=${diag?.url}`,
+      });
+      state.error = 'Bloqueio anti-bot (Akamai) na entrada do funil.';
+      return buildOutput({ runStartedAt, results, ...state, scenario });
+    }
 
     if (det.flow === 'desconhecido') {
       const diag = await captureFailureContext(page, 'A', config.capturarScreenshots).catch(() => null);
