@@ -1,5 +1,5 @@
 import { NOVO_IDS } from '../../lib/constants.js';
-import { fillByIdVerified, makeResult, sleep } from '../../lib/checkpoint.js';
+import { fillByIdVerified, makeResult, marcarInput, sleep } from '../../lib/checkpoint.js';
 import { captureScreenshot } from '../../lib/screenshot.js';
 
 /**
@@ -18,15 +18,9 @@ export async function runE_novo(ctx) {
 
   try {
     // Dia de vencimento: primeiro radio do grupo (ids sao os proprios dias: 01, 06...).
-    const radios = page.locator('input[name="dataVencimentoConta"]');
-    if ((await radios.count().catch(() => 0)) > 0) {
-      await radios.first().click({ force: true }).catch(async () => {
-        // fallback: clica no label irmao (componente estilizado)
-        await page.locator('label', { hasText: /^0?1$/ }).first().click().catch(() => notas.push('vencimento nao selecionado'));
-      });
-    } else {
-      notas.push('radios de vencimento nao encontrados');
-    }
+    // Radios customizados: input real invisivel -> marcarInput (label ancestral + verify).
+    const vencOk = await marcarInput(page, page.locator('input[name="dataVencimentoConta"]')).catch(() => false);
+    if (!vencOk) notas.push('vencimento nao selecionado');
 
     await fillByIdVerified(page, NOVO_IDS.email, scenario.email);
 
@@ -40,21 +34,18 @@ export async function runE_novo(ctx) {
     await sleep(300);
 
     // Periodos: "Manha" ja vem marcada nos dois grupos; garante por via das duvidas.
-    for (const grupo of ['periodoAgendamentoEquipamento']) {
-      await page.locator(`input[name="${grupo}"]`).first().click({ force: true }).catch(() => {});
-    }
+    await marcarInput(page, page.locator('input[name="periodoAgendamentoEquipamento"]')).catch(() => {});
 
     // Termos: checkbox obrigatorio antes do submit (sem ele o pedido nao conclui).
     const termos = page.locator('input[type="checkbox"]').last();
-    const marcado = await termos.isChecked().catch(() => false);
-    if (!marcado) {
-      await termos.click({ force: true }).catch(async () => {
-        const label = page.locator('text=Estou ciente e concordo').first();
-        const box = await label.boundingBox();
-        if (box) await page.mouse.click(box.x - 16, box.y + box.height / 2);
-      });
+    let termosOk = await marcarInput(page, termos).catch(() => false);
+    if (!termosOk) {
+      // ultimo recurso: clique fisico a esquerda do texto (padrao visual do site)
+      const label = page.locator('text=Estou ciente e concordo').first();
+      const box = await label.boundingBox().catch(() => null);
+      if (box) await page.mouse.click(box.x - 16, box.y + box.height / 2);
+      termosOk = await termos.isChecked().catch(() => false);
     }
-    const termosOk = await termos.isChecked().catch(() => false);
 
     screenshotUrl = await captureScreenshot(page, 'E', config.capturarScreenshots);
 

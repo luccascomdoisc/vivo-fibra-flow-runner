@@ -177,3 +177,30 @@ export async function coletarErrosValidacao(page) {
     return [];
   }
 }
+
+/**
+ * Marca um radio/checkbox CUSTOMIZADO do fluxo novo. O <input> real e invisivel
+ * (tamanho zero / fora do viewport) sob um span estilizado — click direto (mesmo
+ * com force) falha com "Element is outside of the viewport". Estrategia:
+ *  1. clica no <label> ancestral (o alvo visivel que o usuario clica);
+ *  2. fallback: click programatico no proprio input (dispara o onChange do React);
+ *  3. verifica o checked de verdade antes de retornar.
+ */
+export async function marcarInput(page, inputLocator, { timeout = 8000 } = {}) {
+  const input = inputLocator.first();
+  await input.waitFor({ state: 'attached', timeout });
+
+  if (await input.isChecked().catch(() => false)) return true;
+
+  // 1) label ancestral (padrao do site: <label><input/><span checkmark/></label>)
+  try {
+    await input.locator('xpath=ancestor::label[1]').click({ timeout: 3000 });
+  } catch {
+    /* tenta fallback */
+  }
+  if (await input.isChecked().catch(() => false)) return true;
+
+  // 2) click programatico: dispara change/click sinteticos que o React escuta.
+  await input.evaluate((el) => el.click()).catch(() => {});
+  return input.isChecked().catch(() => false);
+}
