@@ -33,7 +33,10 @@ export async function launchBrowser({ headless = true, proxyMode = 'none' } = {}
     fingerprintOptions: {
       devices: ['desktop'],
       operatingSystems: ['windows'],
-      browsers: [{ name: 'chrome', minVersion: 119 }],
+      // minVersion alto: o gerador pode sortear versoes proximas do minimo, e um
+      // Chrome 119/120 (2023) e flag na certa para o Akamai (visto na pratica: run
+      // com UA Chrome/120 tomou Access Denied; com Chrome/145 passou).
+      browsers: [{ name: 'chrome', minVersion: 135 }],
       locales: ['pt-BR'],
     },
     newContextOptions: {

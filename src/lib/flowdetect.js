@@ -11,12 +11,28 @@ import { log } from 'apify';
  *
  * Retorna { flow: 'novo' | 'antigo' | 'desconhecido', finalUrl, marker }.
  */
-export async function navigateAndDetect(page, entryUrl, { timeout = 30000 } = {}) {
+export async function navigateAndDetect(page, entryUrl, { timeout = 30000, fallbackUrl = null } = {}) {
   await page.goto(entryUrl, {
     waitUntil: 'domcontentloaded',
     timeout,
     referer: 'https://loja.vivo.com.br/',
   });
+
+  // Bloqueio anti-bot do Akamai na entrada legada (loja.vivo.com.br): nao e "site
+  // quebrado" nem "fluxo desconhecido" — e infra anti-bot. Se temos a URL direta do
+  // checkout novo (entry.checkoutUrl), tentamos por ela; internet.vivo.com.br nao
+  // demonstrou a mesma protecao agressiva.
+  if (await isAkamaiDenied(page)) {
+    if (fallbackUrl) {
+      log.warning('Akamai bloqueou a entrada legada; tentando checkout novo direto.');
+      await page.goto(fallbackUrl, { waitUntil: 'domcontentloaded', timeout, referer: 'https://internet.vivo.com.br/' });
+      if (await isAkamaiDenied(page)) {
+        return { flow: 'bloqueado_akamai', finalUrl: page.url(), marker: 'Access Denied (legada e fallback)', urlNovo: false };
+      }
+    } else {
+      return { flow: 'bloqueado_akamai', finalUrl: page.url(), marker: 'Access Denied (edgesuite)', urlNovo: false };
+    }
+  }
 
   // O checkout novo e um SPA Next.js: o conteudo real so existe apos a hidratacao.
   // Espera curta por QUALQUER um dos marcadores (novo ou antigo) antes de decidir.
@@ -55,4 +71,16 @@ export async function navigateAndDetect(page, entryUrl, { timeout = 30000 } = {}
 
   log.info(`Deteccao de fluxo: ${flow} (url=${urlNovo ? 'checkouts/fibra' : 'legado'}; marker=${marker ?? 'nenhum'})`);
   return { flow, finalUrl, marker, urlNovo };
+}
+
+/** Pagina de negacao do Akamai Bot Manager (edgesuite). */
+async function isAkamaiDenied(page) {
+  try {
+    const title = await page.title();
+    if (/access denied/i.test(title)) return true;
+    const body = await page.locator('body').innerText({ timeout: 2000 });
+    return /access denied/i.test(body) && /edgesuite|reference #/i.test(body);
+  } catch {
+    return false;
+  }
 }
