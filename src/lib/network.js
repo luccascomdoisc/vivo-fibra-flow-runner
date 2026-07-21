@@ -23,14 +23,18 @@ export function attachNetworkCapture(page) {
     try {
       const req = response.request();
       const tipo = req.resourceType();
-      if ((tipo === 'xhr' || tipo === 'fetch') && /\.vivo\.com\.br/.test(url)) {
+      // Filtra pixels de ads/analytics: eles carregam ".vivo.com.br" nos params
+      // (u1=, oref=) e inundavam o buffer, escondendo o BFF transacional real.
+      const HOST_ADS = /(doubleclick|google|googletagmanager|google-analytics|facebook|tiktok|hotjar|clarity)\./i;
+      const host = (() => { try { return new URL(url).hostname; } catch { return ''; } })();
+      if ((tipo === 'xhr' || tipo === 'fetch') && /\.vivo\.com\.br$/.test(host) && !HOST_ADS.test(host)) {
         apiCalls.push({
           method: req.method(),
           url: url.split('?')[0],
           status: response.status(),
           ts: Date.now(),
         });
-        if (apiCalls.length > 30) apiCalls.shift();
+        if (apiCalls.length > 60) apiCalls.shift();
       }
     } catch {
       /* nunca derruba o fluxo por captura */
