@@ -5,6 +5,7 @@ import {
   coletarErrosValidacao,
   waitForText,
   makeResult,
+  marcarInput,
 } from '../../lib/checkpoint.js';
 import { captureScreenshot } from '../../lib/screenshot.js';
 
@@ -25,16 +26,10 @@ export async function runC_novo(ctx) {
   try {
     const querEdificio = /edif/i.test(scenario.tipoImovel ?? '');
     if (querEdificio) {
-      // O label de texto NAO tem for= (clicar nele nao marca). O input radio
-      // (id "Edifício", com acento) fica escondido sob um span estilizado:
-      // clique com force no proprio input e confira o checked.
-      const radio = page.locator('input[name="tipoImovel"][value="Edifício"]').first();
-      await radio.click({ force: true });
-      if (!(await radio.isChecked().catch(() => false))) {
-        // fallback: clica no span "checkmark" dentro do label que envolve o input
-        await radio.locator('xpath=following-sibling::span[1]').click({ force: true }).catch(() => {});
-      }
-      if (!(await radio.isChecked().catch(() => false))) {
+      // O input radio real e invisivel (radio customizado) -> marcarInput cuida
+      // do clique no label ancestral + verificacao do checked.
+      const radio = page.locator('input[name="tipoImovel"][value="Edifício"]');
+      if (!(await marcarInput(page, radio))) {
         throw new Error('nao consegui selecionar tipo de imovel "Edifício"');
       }
       await fillByIdVerified(page, NOVO_IDS.andar, scenario.andar ?? '1');
