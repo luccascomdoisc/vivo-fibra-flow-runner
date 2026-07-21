@@ -29,3 +29,39 @@ export const ANCHORS = {
   E: 'Agendar instalação',
   F: /Deu certo!?\s*O seu pedido[\s\S]*?foi recebido/i,
 };
+
+// ---------------------------------------------------------------------------
+// FLUXO NOVO (jul/2026): checkout Next.js em internet.vivo.com.br/checkouts/fibra.
+// A URL antiga de cadastro redireciona para ca quando o fluxo novo esta ativo;
+// o fluxo antigo (acima) segue existindo como contingencia.
+// ---------------------------------------------------------------------------
+
+export const NOVO_URL_MARKER = '/checkouts/fibra';
+
+// Ancoras de tela do fluxo novo (textos estaveis; nunca classes CSS hasheadas).
+export const ANCHORS_NOVO = {
+  DADOS: 'vamos iniciar sua compra online',
+  AGENDAMENTO: 'agende a instalação',
+  SUCESSO: 'Pedido realizado com sucesso',
+};
+
+// IDs estaveis dos campos do fluxo novo (etapa Dados).
+export const NOVO_IDS = {
+  nome: 'Name',
+  celular: 'Phone',
+  cpf: 'cpf',
+  dataNascimento: 'dataNascimento',
+  cep: 'Cep',
+  endereco: 'enderecoCobranca',
+  numero: 'Numero',
+  bairro: 'Bairro',
+  uf: 'UF',
+  cidade: 'Cidade',
+  complemento: 'Complemento',
+  andar: 'Extra3', // campo "Andar" (so existe com tipo de imovel = Edificio)
+  referencia: 'EntregaPontoReferencia',
+  // etapa Agendamento
+  email: 'Mail',
+  dataInstalacao1: 'dataAgendamentoEquipamento',
+  dataInstalacao2: 'DataAgendamentoEquipamento2', // capitalizacao inconsistente e do site mesmo
+};

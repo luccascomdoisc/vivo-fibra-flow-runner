@@ -10,6 +10,12 @@ import { runC } from './checkpoints/c-endereco.js';
 import { runD } from './checkpoints/d-topaz.js';
 import { runE } from './checkpoints/e-agendamento.js';
 import { runF } from './checkpoints/f-confirmacao.js';
+import { navigateAndDetect } from './lib/flowdetect.js';
+import { runA_novo } from './checkpoints/novo/a-dados-pessoais.js';
+import { runB_novo } from './checkpoints/novo/b-cep-endereco.js';
+import { runC_novo } from './checkpoints/novo/c-imovel-avanco.js';
+import { runE_novo } from './checkpoints/novo/e-agendamento.js';
+import { runF_novo } from './checkpoints/novo/f-confirmacao.js';
 
 /**
  * Orquestra Z->F. Para no primeiro checkpoint 'fail' (os seguintes ficam 'skipped').
@@ -35,7 +41,7 @@ export async function runFlow(input) {
     orderNumber: null,
     topazScore: null,
     error: null,
-    debug: { proxyMode: config.proxyMode, userAgent: null, warmup: null },
+    debug: { proxyMode: config.proxyMode, userAgent: null, warmup: null, flow: null },
   };
 
   // ---- Checkpoint Z (HTTP, sem browser) ----
@@ -60,16 +66,45 @@ export async function runFlow(input) {
     // Warm-up anti-Akamai antes de tocar no deep-link de cadastro (ver browser.js).
     if (config.warmup) state.debug.warmup = await warmUpAkamai(page, { timeout: config.timeoutPorStepMs });
 
-    const ctx = { page, net, scenario, entry, entryUrl: z.entryUrl, config, state };
+    // Navega e detecta qual fluxo a Vivo serviu (novo checkout vs contingencia).
+    // A entryUrl continua a mesma: quando o fluxo novo esta ativo, a Vivo redireciona
+    // server-side para internet.vivo.com.br/checkouts/fibra/?id=...&offer=...
+    const det = await navigateAndDetect(page, z.entryUrl, { timeout: config.timeoutPorStepMs });
+    state.debug.flow = { detected: det.flow, marker: det.marker, urlNovo: det.urlNovo };
 
-    const sequence = [
-      ['A', runA],
-      ['B', runB],
-      ['C', runC],
-      ['D', runD],
-      ['E', runE],
-      ['F', runF],
-    ];
+    if (det.flow === 'desconhecido') {
+      const diag = await captureFailureContext(page, 'A', config.capturarScreenshots).catch(() => null);
+      Object.assign(byId.A, {
+        status: 'fail',
+        durationMs: 0,
+        screenshotUrl: diag?.screenshotUrl ?? null,
+        detalhe: `fluxo DESCONHECIDO (nem checkout novo nem contingencia) || url=${diag?.url} | title=${diag?.title} | tela="${diag?.snippet ?? ''}"`,
+      });
+      state.error = 'Fluxo desconhecido: a pagina servida nao corresponde a nenhum fluxo conhecido.';
+      return buildOutput({ runStartedAt, results, ...state, scenario });
+    }
+
+    const ctx = { page, net, scenario, entry, entryUrl: z.entryUrl, config, state, alreadyAtEntry: true };
+
+    // D (Topaz) e observacional e serve para os dois fluxos.
+    const sequence =
+      det.flow === 'novo'
+        ? [
+            ['A', runA_novo],
+            ['B', runB_novo],
+            ['C', runC_novo],
+            ['D', runD],
+            ['E', runE_novo],
+            ['F', runF_novo],
+          ]
+        : [
+            ['A', runA],
+            ['B', runB],
+            ['C', runC],
+            ['D', runD],
+            ['E', runE],
+            ['F', runF],
+          ];
 
     for (const [id, fn] of sequence) {
       log.info(`Checkpoint ${id} iniciando...`);
@@ -88,6 +123,9 @@ export async function runFlow(input) {
         break; // os checkpoints seguintes permanecem 'skipped'
       }
     }
+    // Fluxo novo: expoe as chamadas de API observadas para calibracao dos sinais
+    // de rede (leadId, validacoes) nas primeiras runs reais.
+    if (state.debug.flow?.detected === 'novo') state.debug.apiCalls = net.getApiCalls();
   } catch (e) {
     state.error = `Excecao inesperada: ${e.message}`;
     log.exception(e, 'Erro durante o fluxo de browser');

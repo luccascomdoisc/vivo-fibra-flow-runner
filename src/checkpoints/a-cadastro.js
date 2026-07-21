@@ -13,11 +13,14 @@ export async function runA(ctx) {
   let screenshotUrl = null;
 
   try {
-    await page.goto(entryUrl, {
-      waitUntil: 'domcontentloaded',
-      timeout: config.timeoutPorStepMs,
-      referer: 'https://loja.vivo.com.br/',
-    });
+    // O orquestrador ja pode ter navegado (deteccao de fluxo). So faz goto se preciso.
+    if (!ctx.alreadyAtEntry) {
+      await page.goto(entryUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: config.timeoutPorStepMs,
+        referer: 'https://loja.vivo.com.br/',
+      });
+    }
     await waitForText(page, ANCHORS.A, config.timeoutPorStepMs);
     screenshotUrl = await captureScreenshot(page, 'A', config.capturarScreenshots);
 

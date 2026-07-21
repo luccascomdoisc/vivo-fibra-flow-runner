@@ -11,9 +11,31 @@ import { BFF_PREFIX } from './constants.js';
 export function attachNetworkCapture(page) {
   const asb = new Map();
   let topaz = null;
+  // Ring buffer de chamadas de API *.vivo.com.br (fluxo novo: BFF ainda nao confirmado).
+  // Vai para debug.apiCalls e serve para calibrar leadId/validacoes nas primeiras runs.
+  const apiCalls = [];
 
   page.on('response', async (response) => {
     const url = response.url();
+
+    // Captura generica (fluxo novo): XHR/fetch de API em dominios Vivo, sem corpo
+    // (so metadados) para nao inflar o output nem vazar dados pessoais.
+    try {
+      const req = response.request();
+      const tipo = req.resourceType();
+      if ((tipo === 'xhr' || tipo === 'fetch') && /\.vivo\.com\.br/.test(url)) {
+        apiCalls.push({
+          method: req.method(),
+          url: url.split('?')[0],
+          status: response.status(),
+          ts: Date.now(),
+        });
+        if (apiCalls.length > 30) apiCalls.shift();
+      }
+    } catch {
+      /* nunca derruba o fluxo por captura */
+    }
+
     if (!url.includes(BFF_PREFIX)) return;
 
     try {
@@ -59,5 +81,6 @@ export function attachNetworkCapture(page) {
   return {
     getAsb: (subType) => asb.get(String(subType)) ?? null,
     getTopaz: () => topaz,
+    getApiCalls: () => [...apiCalls],
   };
 }
