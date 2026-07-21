@@ -25,11 +25,12 @@
     "entry": {
       "title": "Entrada do cadastro",
       "type": "object",
-      "description": "productsIds e promotion do plano alvo. Se omitidos, o checkpoint Z tenta resolver pela link.href do catalogo.",
+      "description": "productsIds e promotion do plano alvo. Se omitidos, o checkpoint Z tenta resolver pela link.href do catalogo. A mesma entryUrl serve para os dois fluxos: quando o checkout novo (internet.vivo.com.br/checkouts/fibra) esta ativo, a Vivo redireciona server-side; a deteccao de fluxo e automatica apos o goto. checkoutUrl (opcional): URL direta do checkout novo, usada como fallback quando o Akamai bloqueia a entrada legada.",
       "editor": "json",
       "prefill": {
         "productsIds": "235",
-        "promotion": "600"
+        "promotion": "600",
+        "checkoutUrl": "https://internet.vivo.com.br/checkouts/fibra/?id=a2ee717126ca&offer=1778d9c8c0d3"
       }
     },
     "config": {
@@ -46,5 +47,7 @@
       }
     }
   },
-  "required": ["scenario"]
+  "required": [
+    "scenario"
+  ]
 }
