@@ -1,0 +1,17 @@
+{
+  "name": "vivo-fibra-flow-runner",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Apify Actor que executa o funil de contratacao Vivo Fibra (checkpoints Z->F) e reporta em qual etapa quebrou.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/main.js"
+  },
+  "dependencies": {
+    "apify": "^3.2.6",
+    "fingerprint-injector": "^2.1.0",
+    "playwright": "^1.49.1"
+  }
+}
