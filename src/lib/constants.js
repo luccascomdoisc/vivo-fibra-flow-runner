@@ -55,11 +55,26 @@ export const ANCHORS = {
 
 export const NOVO_URL_MARKER = '/checkouts/fibra';
 
-// Recaptura 21/08/2026: o Tatico tem 4 etapas e CADA UMA TEM ROTA PROPRIA.
-// A rota e o sinal de avanco mais forte que existe aqui — o <h1> e identico nas
-// quatro telas ("Ola, vamos iniciar sua compra online"), entao texto de tela NAO
-// serve para distinguir etapa (era o erro do mapeamento de julho).
-export const NOVO_ROUTES = {
+// O Tatico tem 4 etapas na MESMA URL. Duas armadilhas empilhadas:
+//  1. o <h1> e identico nas quatro telas ("Ola, vamos iniciar sua compra
+//     online") -> texto de tela nao distingue etapa (erro do mapeamento de julho);
+//  2. os paths /dados, /endereco, /agendamento, /confirmacao/<pedido> que
+//     aparecem na captura de rede sao PATHS VIRTUAIS que o site envia ao GA
+//     (parametro dp/dl do g/collect). O location.pathname real fica em
+//     /checkouts/fibra/ do inicio ao fim -> rota tambem nao distingue etapa
+//     (erro da primeira versao deste patch; run 21/08 20:42 comprovou).
+//
+// O que sobra e o mais confiavel dos tres: PRESENCA DE CAMPO. Cada etapa tem um
+// campo exclusivo, e os conjuntos nao se sobrepoem (verificado nos dumps de DOM).
+export const NOVO_STEP_FIELDS = {
+  DADOS: 'dataNascimento', // so na etapa Dados
+  ENDERECO: 'enderecoCobranca', // so na etapa Endereco
+  AGENDAMENTO: 'Mail', // so na etapa Agendamento
+};
+
+// Paths virtuais do GA — NAO usar para esperar avanco. Ficam documentados porque
+// aparecem nas capturas de rede e ajudam a ler o funil no GA4.
+export const GA_VIRTUAL_PATHS = {
   DADOS: '/checkouts/fibra/dados',
   ENDERECO: '/checkouts/fibra/endereco',
   AGENDAMENTO: '/checkouts/fibra/agendamento',
@@ -80,9 +95,10 @@ export const FERIADOS_MARKER = 'brasilapi.com.br/api/feriados'; // datas (etapa 
 export const HOSTS_API_EXTRA = /(asbb2c\.accenture\.com|viacep\.com\.br|brasilapi\.com\.br)$/i;
 
 // Ancoras de texto do Tatico. So a de SUCESSO e confiavel (h1 muda nela);
-// as demais existem apenas como reforco — quem manda e NOVO_ROUTES.
+// as demais existem apenas como reforco — quem manda e NOVO_STEP_FIELDS.
 export const ANCHORS_NOVO = {
-  DADOS: 'vamos iniciar sua compra online',
+  DADOS: 'Informe os seus dados',
+  ENDERECO: 'endereço para instalação da fibra',
   SUCESSO: 'Pedido realizado com sucesso',
 };
 

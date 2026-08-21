@@ -207,9 +207,18 @@ export async function marcarInput(page, inputLocator, { timeout = 8000 } = {}) {
 }
 
 /**
- * Aguarda a ROTA da etapa. No Tatico cada etapa tem path proprio (/dados,
- * /endereco, /agendamento, /confirmacao/<pedido>) e o <h1> e igual nas quatro —
- * a rota e o unico sinal de avanco realmente confiavel.
+ * Aguarda a etapa do Tatico pela PRESENCA DO CAMPO exclusivo dela.
+ * Unico sinal confiavel: o <h1> e igual nas 4 telas e a URL nao muda (os paths
+ * /dados, /endereco... sao virtuais, so existem no que o site manda ao GA).
+ */
+export async function waitForCampo(page, id, timeout) {
+  await page.locator(`[id="${id}"]`).first().waitFor({ state: 'visible', timeout });
+}
+
+/**
+ * Aguarda um fragmento aparecer no location.pathname. Mantido para o caso de a
+ * Vivo passar a navegar de verdade entre as etapas — hoje NAO serve como sinal
+ * de avanco no Tatico (a URL fica em /checkouts/fibra/ do inicio ao fim).
  */
 export async function waitForRoute(page, fragmento, timeout) {
   await page.waitForFunction(

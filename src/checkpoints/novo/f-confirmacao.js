@@ -1,19 +1,23 @@
-import { ANCHORS_NOVO, NOVO_ROUTES } from '../../lib/constants.js';
-import { clickContinuarCompra, waitForRoute, waitForText, makeResult } from '../../lib/checkpoint.js';
+import { ANCHORS_NOVO } from '../../lib/constants.js';
+import { clickContinuarCompra, waitForText, makeResult } from '../../lib/checkpoint.js';
 import { captureScreenshot } from '../../lib/screenshot.js';
 
 /**
  * [TATICO] Checkpoint F - Confirmacao: submete o Agendamento (o botao "Continuar
  * compra" desta etapa e type="submit" — e o commit real do pedido) e aguarda a
- * rota /checkouts/fibra/confirmacao/<numeroDoPedido>.
+ * tela de sucesso.
  *
- * Numero do pedido: vem no PROPRIO PATH da confirmacao (ex.: 20260821-5757026) e
- * e o mesmo transaction_id que o dataLayer publica no evento purchase.
- * leadId: do backend Tatico (asbb2c) — "102|<leadId>|<marcador>|<ms>".
+ * Sinal de sucesso: o texto "Pedido realizado com sucesso" — esta e a UNICA tela
+ * do Tatico com <h1> proprio, e por isso a unica em que ancora de texto e legitima.
+ * A URL nao ajuda: continua em /checkouts/fibra/ (o /confirmacao/<pedido> que
+ * aparece nas capturas e path virtual de GA).
  *
- * Marcador do lead: no Infinity vinha "INVALIDO" (combinado com a midia Vivo para
- * descarte). No Tatico as duas capturas de 21/08 voltaram "DUPLICADO". Guardamos o
- * marcador no detalhe para a midia confirmar como o lead sintetico e descartado.
+ * Numero do pedido: transaction_id do evento purchase no dataLayer.
+ * leadId: backend Tatico (asbb2c) — "112|<leadId>|<marcador>|<ms>".
+ *
+ * Marcador do lead: o Infinity devolvia INVALIDO (base do acordo de descarte com
+ * a midia Vivo). No Tatico ja vimos INVALIDO (CPF novo) e DUPLICADO (CPF/e-mail
+ * repetido) — guardamos o marcador no detalhe para acompanhar.
  */
 export async function runF_novo(ctx) {
   const { page, net, state, config } = ctx;
@@ -22,17 +26,10 @@ export async function runF_novo(ctx) {
 
   try {
     await clickContinuarCompra(page);
-    await waitForRoute(page, NOVO_ROUTES.CONFIRMACAO, config.timeoutPorStepMs);
-
-    // Reforco visual (nao decide): a tela de sucesso e a unica com <h1> proprio.
-    await waitForText(page, ANCHORS_NOVO.SUCESSO, 8000).catch(() => {});
+    await waitForText(page, ANCHORS_NOVO.SUCESSO, config.timeoutPorStepMs);
     screenshotUrl = await captureScreenshot(page, 'F', config.capturarScreenshots);
 
-    // (1) numero do pedido no path da rota de confirmacao.
-    const m = page.url().match(/\/confirmacao\/([^/?#]+)/);
-    if (m) state.orderNumber = decodeURIComponent(m[1]);
-
-    // (2) leadId + marcador no backend Tatico.
+    // (1) leadId + marcador do backend.
     const lead = net.getTaticoLead();
     let marcador = null;
     if (lead) {
@@ -40,20 +37,23 @@ export async function runF_novo(ctx) {
       marcador = lead.marcador ?? null;
     }
 
-    // (3) fallback: dataLayer (transaction_id do evento purchase) e asb legado.
-    if (!state.leadId || !state.orderNumber) {
-      try {
-        const extra = await page.evaluate(() => {
-          const flat = JSON.stringify(window.dataLayer ?? []);
-          const lead = flat.match(/"lead[_ ]?id"\s*:\s*"?(\d+)"?/i);
-          const tx = flat.match(/"transaction_id"\s*:\s*"([^"]+)"/i);
-          return { lead: lead?.[1] ?? null, tx: tx?.[1] ?? null };
-        });
-        if (!state.leadId && extra.lead) state.leadId = extra.lead;
-        if (!state.orderNumber && extra.tx) state.orderNumber = extra.tx;
-      } catch {
-        /* melhor-esforco */
-      }
+    // (2) numero do pedido: dataLayer (primario) e URL (caso a Vivo passe a
+    // navegar de verdade entre as etapas algum dia).
+    try {
+      const extra = await page.evaluate(() => {
+        const flat = JSON.stringify(window.dataLayer ?? []);
+        const tx = flat.match(/"transaction_id"\s*:\s*"?([\w-]+)"?/i);
+        const lead = flat.match(/"lead[_ ]?id"\s*:\s*"?(\d+)"?/i);
+        return { tx: tx?.[1] ?? null, lead: lead?.[1] ?? null };
+      });
+      if (extra.tx) state.orderNumber = extra.tx;
+      if (!state.leadId && extra.lead) state.leadId = extra.lead;
+    } catch {
+      /* melhor-esforco */
+    }
+    if (!state.orderNumber) {
+      const m = page.url().match(/\/confirmacao\/([^/?#]+)/);
+      if (m) state.orderNumber = decodeURIComponent(m[1]);
     }
 
     return makeResult(

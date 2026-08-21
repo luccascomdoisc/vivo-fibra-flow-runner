@@ -15,16 +15,24 @@
 | Campos de endereço | na tela **Dados** | na tela **Endereço** |
 | Rota | uma só, sem mudar entre etapas | **uma rota por etapa** |
 
-O checkpoint B esperava `#enderecoCobranca` ganhar valor na tela Dados. Em agosto esse campo não existe mais ali → poll de 30 s → `FALHA(B)` com o funil da Vivo **funcionando**. Lição: **ancorar avanço em rota, nunca em texto de tela** — o `<h1>` é idêntico nas quatro telas (`Olá, vamos iniciar sua compra online`).
+O checkpoint B esperava `#enderecoCobranca` ganhar valor na tela Dados. Em agosto esse campo não existe mais ali → poll de 30 s → `FALHA(B)` com o funil da Vivo **funcionando**.
 
-## Rotas por etapa (sinal primário de avanço)
+## Como saber que a etapa avançou (as três tentativas)
 
-```
-/checkouts/fibra/dados
-/checkouts/fibra/endereco
-/checkouts/fibra/agendamento
-/checkouts/fibra/confirmacao/<numeroDoPedido>
-```
+Três candidatos, dois eliminados por evidência:
+
+1. **Texto de tela — não serve.** O `<h1>` é idêntico nas quatro telas: `Olá, vamos iniciar sua compra online`. (Erro do mapeamento de julho.)
+2. **Rota — não serve.** Os paths `/dados`, `/endereco`, `/agendamento`, `/confirmacao/<pedido>` que aparecem nas capturas de rede são **paths virtuais que o site manda ao GA** (`dp`/`dl` do `g/collect`). O `location.pathname` real fica em `/checkouts/fibra/` do começo ao fim — comprovado no run de 21/08 20:42, que falhou em B *já estando na tela de Endereço*, com a URL inalterada. (Erro da primeira versão do patch.)
+3. **Presença de campo — serve.** Cada etapa tem um campo exclusivo e os conjuntos não se sobrepõem:
+
+| Etapa | Campo exclusivo |
+|---|---|
+| Dados | `#dataNascimento` |
+| Endereço | `#enderecoCobranca` |
+| Agendamento | `#Mail` |
+| Confirmação | nenhum campo; texto `Pedido realizado com sucesso` (única tela com h1 próprio) |
+
+Subtítulos por etapa existem e são estáveis (`Informe os seus dados:`, `Agora, você precisa preencher o endereço para instalação da fibra`), mas ficam como reforço — copy muda mais que estrutura de formulário.
 
 ## Etapa 1 — Dados (`/dados`)
 
@@ -94,7 +102,7 @@ Observações que mudam o desenho do monitor:
 1. **O checkout Tático não consulta cobertura FTTH.** Nenhuma chamada de viabilidade aparece em nenhuma das duas capturas — inclusive com CEP de cidade sem cobertura boa (28640-000, Carmo/RJ), o fluxo segue igual. A cobertura é avaliada **entre o pedido e a aprovação da venda**, fora do site. O monitor mede *funil*, não cobertura — e não deve prometer o contrário.
 2. **Duas dependências de terceiro no caminho crítico** (ViaCEP e brasilapi). Se uma cai, a tela quebra sem culpa da Vivo — o alerta precisa dizer isso, senão vira escalada errada.
 3. **CEP geral quebra o autofill.** CEP de cidade pequena responde 200 com `logradouro: ""` (foi o caso do 28640-000): Endereço e Bairro vêm vazios e o form trava em "Campo obrigatório". **Regra do pool: só CEP com logradouro no ViaCEP.**
-4. **Marcador do lead mudou:** Infinity devolvia `112|<leadId>|INVALIDO|ms`; o Tático devolve `102|<leadId>|DUPLICADO|ms`. O acordo de descarte com a mídia Vivo se apoiava no `INVALIDO` — precisa ser reconfirmado.
+4. **Marcador do lead:** o formato pipe-separado continua igual ao do Infinity. Já vimos os dois casos: `112|<leadId>|INVÁLIDO|ms` com CPF novo (run do Actor em 21/08 20:42) e `102|<leadId>|DUPLICADO|ms` nas capturas manuais, que repetiram CPF/e-mail. Ou seja, o `INVÁLIDO` que embasa o acordo de descarte com a mídia Vivo **continua valendo** para as runs do monitor, que geram CPF novo a cada execução.
 5. O avanço da etapa Dados **já grava um lead** no backend (um `102|...` por avanço), então uma run completa produz mais de um lead.
 6. Não há Topaz no Tático — o checkpoint D é observacional e retorna imediato.
 
@@ -113,11 +121,11 @@ Observações que mudam o desenho do monitor:
 |---|---|---|
 | Z | Landing Page | catálogo `total.json` + monta o deep link |
 | A | Cadastro inicial | hidratação + nome, celular, CEP (aguarda ViaCEP), número |
-| B | Dados pessoais | CPF, nascimento → "Continuar compra" → rota `/endereco` |
-| C | Endereço de instalação | valida autofill + tipo de imóvel/complemento/referência → rota `/agendamento` |
+| B | Dados pessoais | CPF, nascimento → "Continuar compra" → aparece `#enderecoCobranca` |
+| C | Endereço de instalação | valida autofill + tipo de imóvel/complemento/referência → aparece `#Mail` |
 | D | Crédito (Topaz) | observacional; inexistente no Tático |
 | E | Agendamento | vencimento, e-mail, 2 datas, períodos, termos |
-| F | Confirmação | submit final → rota `/confirmacao/<pedido>`; pedido do path, leadId do asbb2c |
+| F | Confirmação | submit final → texto de sucesso; pedido do `transaction_id` do dataLayer, leadId do asbb2c |
 
 Contrato de output preservado: `checkpoints[]`, `failedAt`, `leadId`, `orderNumber`, `topazScore`, `error`, `debug`. Novidades em `debug`: `flow.nome` (**Tático**/**Infinity**, para o alerta nomear o funil), `deps` (status de ViaCEP e brasilapi) e `tatico` (respostas do backend, sem o JWT).
 

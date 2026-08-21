@@ -1,9 +1,9 @@
-import { NOVO_IDS, NOVO_NAMES, NOVO_ROUTES } from '../../lib/constants.js';
+import { NOVO_IDS, NOVO_NAMES, NOVO_STEP_FIELDS } from '../../lib/constants.js';
 import {
   fillByIdVerified,
   clickContinuarCompra,
   coletarErrosValidacao,
-  waitForRoute,
+  waitForCampo,
   waitForHydration,
   marcarPorName,
   makeResult,
@@ -74,12 +74,12 @@ export async function runC_novo(ctx) {
     await clickContinuarCompra(page);
 
     try {
-      await waitForRoute(page, NOVO_ROUTES.AGENDAMENTO, config.timeoutPorStepMs);
+      await waitForCampo(page, NOVO_STEP_FIELDS.AGENDAMENTO, config.timeoutPorStepMs);
     } catch {
       const erros = await coletarErrosValidacao(page);
       const detalhe = erros.length
         ? `Tatico; form invalido na etapa Endereco: ${erros.join(', ')}`
-        : 'Tatico; sem avanco apos Continuar compra (rota /agendamento nao chegou)';
+        : 'Tatico; sem avanco apos Continuar compra (etapa Agendamento nao apareceu)';
       return makeResult('fail', start, screenshotUrl, detalhe);
     }
 
@@ -87,7 +87,7 @@ export async function runC_novo(ctx) {
       'ok',
       start,
       screenshotUrl,
-      `Tatico; autofill ok ("${endereco.slice(0, 40)}"); rota /agendamento${notas.length ? `; ${notas.join(' | ')}` : ''}`,
+      `Tatico; autofill ok ("${endereco.slice(0, 40)}"); etapa Agendamento na tela${notas.length ? `; ${notas.join(' | ')}` : ''}`,
     );
   } catch (e) {
     return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);
