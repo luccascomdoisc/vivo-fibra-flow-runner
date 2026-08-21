@@ -205,3 +205,36 @@ export async function marcarInput(page, inputLocator, { timeout = 8000 } = {}) {
   await input.evaluate((el) => el.click()).catch(() => {});
   return input.isChecked().catch(() => false);
 }
+
+/**
+ * Aguarda a ROTA da etapa. No Tatico cada etapa tem path proprio (/dados,
+ * /endereco, /agendamento, /confirmacao/<pedido>) e o <h1> e igual nas quatro —
+ * a rota e o unico sinal de avanco realmente confiavel.
+ */
+export async function waitForRoute(page, fragmento, timeout) {
+  await page.waitForFunction(
+    (f) => window.location.pathname.includes(f),
+    fragmento,
+    { timeout, polling: 300 },
+  );
+}
+
+/** Marca um radio/checkbox do Tatico pelo atributo name (+ value opcional). */
+export async function marcarPorName(page, name, value = null, opts = {}) {
+  const sel = value ? `input[name="${name}"][value="${value}"]` : `input[name="${name}"]`;
+  return marcarInput(page, page.locator(sel), opts);
+}
+
+/**
+ * Espera a resposta do ViaCEP capturada pelo listener (o autofill do endereco
+ * depende dela). Retorna o objeto do net.getViaCep() ou null se nao veio.
+ */
+export async function esperarViaCep(net, timeout) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const v = net.getViaCep();
+    if (v) return v;
+    await sleep(300);
+  }
+  return null;
+}

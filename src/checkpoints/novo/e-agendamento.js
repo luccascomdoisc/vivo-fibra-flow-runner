@@ -1,50 +1,62 @@
-import { NOVO_IDS } from '../../lib/constants.js';
-import { fillByIdVerified, makeResult, marcarInput, sleep } from '../../lib/checkpoint.js';
+import { NOVO_IDS, NOVO_NAMES } from '../../lib/constants.js';
+import { fillByIdVerified, makeResult, marcarPorName, sleep } from '../../lib/checkpoint.js';
 import { captureScreenshot } from '../../lib/screenshot.js';
 
 /**
- * [FLUXO NOVO] Checkpoint E - Agendamento: vencimento da fatura, e-mail da fatura
- * digital (o e-mail MUDOU de tela: no antigo ficava no B), duas datas de instalacao
- * (selects nativos com value ISO yyyy-mm-dd), periodos e aceite de termos.
+ * [TATICO] Checkpoint E - Agendamento (/checkouts/fibra/agendamento): vencimento
+ * da fatura, e-mail da fatura digital (no Infinity o e-mail ficava na tela B),
+ * duas datas de instalacao (selects nativos com value ISO), periodos e termos.
  *
- * Ao contrario do antigo (dropdowns custom fragilissimos), aqui sao <select> nativos:
- * selectOption resolve. "Manha" ja vem pre-selecionada nos dois grupos de periodo.
+ * Armadilhas confirmadas na recaptura 21/08:
+ *  - Os dois grupos de periodo REPETEM os ids #manha/#tarde; so o name distingue
+ *    (periodoAgendamentoEquipamento vs PeriodoAgendamentoEquipamento2).
+ *  - O checkbox de termos nao tem id -> localizar por name="optInTerms".
+ *  - A tela consulta brasilapi.com.br/api/feriados para montar as datas: se esse
+ *    terceiro cair, a lista vem vazia sem culpa da Vivo.
  */
 export async function runE_novo(ctx) {
-  const { page, scenario, config } = ctx;
+  const { page, net, config } = ctx;
+  const { scenario } = ctx;
   const start = Date.now();
   let screenshotUrl = null;
   const notas = [];
 
   try {
-    // Dia de vencimento: primeiro radio do grupo (ids sao os proprios dias: 01, 06...).
-    // Radios customizados: input real invisivel -> marcarInput (label ancestral + verify).
-    const vencOk = await marcarInput(page, page.locator('input[name="dataVencimentoConta"]')).catch(() => false);
+    // Dia de vencimento: primeiro do grupo (01 ja vem marcado por padrao).
+    const vencOk = await marcarPorName(page, NOVO_NAMES.vencimento).catch(() => false);
     if (!vencOk) notas.push('vencimento nao selecionado');
 
     await fillByIdVerified(page, NOVO_IDS.email, scenario.email);
 
-    // Datas de instalacao: selects nativos; 1a opcao valida em cada um (values ISO).
+    // Datas de instalacao: selects nativos, values ISO (yyyy-mm-dd).
     const sel1 = page.locator(`[id="${NOVO_IDS.dataInstalacao1}"]`);
     const sel2 = page.locator(`[id="${NOVO_IDS.dataInstalacao2}"]`);
     const opcoes1 = await sel1.locator('option').evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
-    await sel1.selectOption(opcoes1[0]);
     const opcoes2 = await sel2.locator('option').evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
-    await sel2.selectOption(opcoes2[1] ?? opcoes2[0]); // 2a opcao preferida (datas distintas)
+    if (!opcoes1.length || !opcoes2.length) {
+      const fer = net.getFeriados();
+      const causa = fer && fer.status !== 200
+        ? `DEPENDENCIA EXTERNA: brasilapi/feriados HTTP ${fer.status}`
+        : 'sem datas de instalacao disponiveis no select';
+      screenshotUrl = await captureScreenshot(page, 'E', config.capturarScreenshots);
+      return makeResult('fail', start, screenshotUrl, `Tatico; ${causa}`);
+    }
+    await sel1.selectOption(opcoes1[0]);
+    await sel2.selectOption(opcoes2[1] ?? opcoes2[0]); // 2a data preferida (datas distintas)
     await sleep(300);
 
-    // Periodos: "Manha" ja vem marcada nos dois grupos; garante por via das duvidas.
-    await marcarInput(page, page.locator('input[name="periodoAgendamentoEquipamento"]')).catch(() => {});
+    // Periodos: "Manha" ja vem marcada nos dois grupos; garante por name.
+    await marcarPorName(page, NOVO_NAMES.periodo1, 'manha').catch(() => {});
+    await marcarPorName(page, NOVO_NAMES.periodo2, 'manha').catch(() => {});
 
-    // Termos: checkbox obrigatorio antes do submit (sem ele o pedido nao conclui).
-    const termos = page.locator('input[type="checkbox"]').last();
-    let termosOk = await marcarInput(page, termos).catch(() => false);
+    // Termos: obrigatorio para o submit final. Sem id -> por name.
+    let termosOk = await marcarPorName(page, NOVO_NAMES.termos).catch(() => false);
     if (!termosOk) {
       // ultimo recurso: clique fisico a esquerda do texto (padrao visual do site)
       const label = page.locator('text=Estou ciente e concordo').first();
       const box = await label.boundingBox().catch(() => null);
       if (box) await page.mouse.click(box.x - 16, box.y + box.height / 2);
-      termosOk = await termos.isChecked().catch(() => false);
+      termosOk = await page.locator(`input[name="${NOVO_NAMES.termos}"]`).first().isChecked().catch(() => false);
     }
 
     screenshotUrl = await captureScreenshot(page, 'E', config.capturarScreenshots);
@@ -53,9 +65,9 @@ export async function runE_novo(ctx) {
       termosOk ? 'ok' : 'fail',
       start,
       screenshotUrl,
-      `fluxo novo; datas=${opcoes1[0]}/${opcoes2[1] ?? opcoes2[0]}; termos=${termosOk ? 'ok' : 'NAO marcado'}; ${notas.join(' | ') || 'periodos ok'}`,
+      `Tatico; datas=${opcoes1[0]}/${opcoes2[1] ?? opcoes2[0]}; termos=${termosOk ? 'ok' : 'NAO marcado'}; ${notas.join(' | ') || 'periodos ok'}`,
     );
   } catch (e) {
-    return makeResult('fail', start, screenshotUrl, `fluxo novo; erro: ${e.message}`);
+    return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);
   }
 }

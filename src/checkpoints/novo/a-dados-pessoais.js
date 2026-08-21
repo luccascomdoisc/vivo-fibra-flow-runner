@@ -1,30 +1,53 @@
 import { NOVO_IDS } from '../../lib/constants.js';
-import { waitForHydration, fillByIdVerified, makeResult } from '../../lib/checkpoint.js';
+import { waitForHydration, fillByIdVerified, esperarViaCep, makeResult } from '../../lib/checkpoint.js';
 import { captureScreenshot } from '../../lib/screenshot.js';
 
 /**
- * [FLUXO NOVO] Checkpoint A - Cadastro inicial: garante a hidratacao do checkout
- * e preenche os dados pessoais (nome, celular, CPF, nascimento) da etapa "Dados".
- * Nao ha submit aqui: o fluxo novo funde tudo numa tela so; o avanco e no C.
+ * [TATICO] Checkpoint A - Cadastro inicial: garante a hidratacao e preenche a
+ * primeira metade da etapa "Dados" (/checkouts/fibra/dados): nome, celular, CEP
+ * e numero. Mesmo escopo do A do Infinity, que tambem pegava nome/celular/CEP/nº.
+ *
+ * Sobre o CEP: digitar o CEP dispara um GET em viacep.com.br, que e quem alimenta
+ * o autofill de endereco/bairro/cidade/UF exibido na etapa seguinte. O checkout
+ * Tatico NAO consulta cobertura FTTH em nenhum momento (verificado nas duas
+ * capturas de 21/08: nenhuma chamada de viabilidade) — a cobertura e avaliada
+ * entre o pedido e a aprovacao da venda, fora do site. Portanto este checkpoint
+ * mede autofill, nao cobertura.
  */
 export async function runA_novo(ctx) {
-  const { page, scenario, config } = ctx;
+  const { page, net, scenario, config } = ctx;
   const start = Date.now();
   let screenshotUrl = null;
 
   try {
-    // Regra 1 do fluxo novo: NUNCA interagir antes da hidratacao (interacoes caem
-    // no vazio, sem erro — era exatamente o sintoma dos prints "vazios" do monitor).
+    // Regra 1 do Tatico: NUNCA interagir antes da hidratacao (interacoes caem no
+    // vazio, sem erro — era o sintoma dos prints "vazios" do monitor).
     await waitForHydration(page, `[id="${NOVO_IDS.nome}"]`, { timeout: config.timeoutPorStepMs });
-    screenshotUrl = await captureScreenshot(page, 'A', config.capturarScreenshots);
 
     await fillByIdVerified(page, NOVO_IDS.nome, scenario.nome);
     await fillByIdVerified(page, NOVO_IDS.celular, scenario.celular);
-    await fillByIdVerified(page, NOVO_IDS.cpf, scenario.cpf);
-    await fillByIdVerified(page, NOVO_IDS.dataNascimento, scenario.dataNascimento);
+    await fillByIdVerified(page, NOVO_IDS.cep, scenario.cep);
 
-    return makeResult('ok', start, screenshotUrl, 'fluxo novo; hidratado; dados pessoais ok');
+    const via = await esperarViaCep(net, Math.min(config.timeoutPorStepMs, 15000));
+
+    // O numero fica na etapa Dados (e reaparece preenchido na etapa Endereco).
+    await fillByIdVerified(page, NOVO_IDS.numero, scenario.numeroResidencia);
+    screenshotUrl = await captureScreenshot(page, 'A', config.capturarScreenshots);
+
+    // Diagnostico do autofill separando as tres causas possiveis de problema:
+    // terceiro fora do ar, CEP mal escolhido no pool, ou tudo ok.
+    if (!via) {
+      return makeResult('fail', start, screenshotUrl, 'Tatico; DEPENDENCIA EXTERNA: ViaCEP nao respondeu (autofill de endereco nao vai acontecer)');
+    }
+    if (via.status !== 200 || via.erro) {
+      return makeResult('fail', start, screenshotUrl, `Tatico; DEPENDENCIA EXTERNA: ViaCEP HTTP ${via.status}${via.erro ? ' (CEP inexistente)' : ''}`);
+    }
+    if (!via.temLogradouro) {
+      return makeResult('fail', start, screenshotUrl, `Tatico; CONFIG: CEP ${scenario.cep} e CEP geral (ViaCEP sem logradouro) — o autofill vem vazio e o form trava. Trocar o CEP do pool.`);
+    }
+
+    return makeResult('ok', start, screenshotUrl, `Tatico; hidratado; dados+CEP+numero ok; viacep ok (${via.cidade}/${via.uf})`);
   } catch (e) {
-    return makeResult('fail', start, screenshotUrl, `fluxo novo; erro: ${e.message}`);
+    return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);
   }
 }

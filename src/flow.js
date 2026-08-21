@@ -11,9 +11,10 @@ import { runD } from './checkpoints/d-topaz.js';
 import { runE } from './checkpoints/e-agendamento.js';
 import { runF } from './checkpoints/f-confirmacao.js';
 import { navigateAndDetect } from './lib/flowdetect.js';
+import { FLOW_LABELS } from './lib/constants.js';
 import { runA_novo } from './checkpoints/novo/a-dados-pessoais.js';
-import { runB_novo } from './checkpoints/novo/b-cep-endereco.js';
-import { runC_novo } from './checkpoints/novo/c-imovel-avanco.js';
+import { runB_novo } from './checkpoints/novo/b-dados-avanco.js';
+import { runC_novo } from './checkpoints/novo/c-endereco-imovel.js';
 import { runE_novo } from './checkpoints/novo/e-agendamento.js';
 import { runF_novo } from './checkpoints/novo/f-confirmacao.js';
 
@@ -73,7 +74,14 @@ export async function runFlow(input) {
       timeout: config.timeoutPorStepMs,
       fallbackUrl: entry.checkoutUrl ?? null,
     });
-    state.debug.flow = { detected: det.flow, marker: det.marker, urlNovo: det.urlNovo };
+    // nome = rotulo de negocio do fluxo (Tatico / Infinity). O n8n usa esse campo
+    // para dizer no alerta QUAL funil quebrou, sem precisar traduzir novo/antigo.
+    state.debug.flow = {
+      detected: det.flow,
+      nome: FLOW_LABELS[det.flow] ?? det.flow,
+      marker: det.marker,
+      urlNovo: det.urlNovo,
+    };
 
     if (det.flow === 'bloqueado_akamai') {
       const diag = await captureFailureContext(page, 'A', config.capturarScreenshots).catch(() => null);
@@ -138,9 +146,14 @@ export async function runFlow(input) {
         break; // os checkpoints seguintes permanecem 'skipped'
       }
     }
-    // Fluxo novo: expoe as chamadas de API observadas para calibracao dos sinais
-    // de rede (leadId, validacoes) nas primeiras runs reais.
-    if (state.debug.flow?.detected === 'novo') state.debug.apiCalls = net.getApiCalls();
+    // Tatico: expoe as chamadas observadas + o estado das dependencias de
+    // terceiro (ViaCEP para o autofill, brasilapi para as datas). Serve para o
+    // alerta distinguir "funil da Vivo quebrou" de "terceiro caiu".
+    if (state.debug.flow?.detected === 'novo') {
+      state.debug.apiCalls = net.getApiCalls();
+      state.debug.deps = { viacep: net.getViaCep(), feriados: net.getFeriados() };
+      state.debug.tatico = net.getTatico();
+    }
   } catch (e) {
     state.error = `Excecao inesperada: ${e.message}`;
     log.exception(e, 'Erro durante o fluxo de browser');

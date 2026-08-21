@@ -1,136 +1,126 @@
-# Vivo Fibra — Mapeamento do fluxo novo de checkout
+# Vivo Fibra — Mapeamento do fluxo **Tático** (checkout BAU)
 
 **URL:** `https://internet.vivo.com.br/checkouts/fibra/?id=<id>&offer=<offer>`
-**Data do mapeamento:** 21/07/2026 (execução real completa, dados sintéticos)
-**Stack:** Next.js App Router (React Server Components), 100% client-rendered após hidratação.
+**Mapeado em:** 21/07/2026 · **recapturado em 21/08/2026** (duas execuções reais, dados sintéticos)
+**Stack:** Next.js App Router, 100% client-rendered após hidratação.
 
----
+> **Nomes de negócio (usar no alerta):** **Tático** = fluxo BAU, este checkout. **Infinity** = fluxo de contingência, quando o BAU dá problema (`loja.vivo.com.br` + BFF `unicommerceTacticalB2CBff`). A URL de cadastro do Infinity **redireciona** para o Tático quando ele está ativo.
+> Pegadinha: o BFF do Infinity se chama *unicommerceTactical* e a LP carrega `id_origem_vivo=TaticoLP` — ali "Tático" é a LP de mídia, não a plataforma de checkout.
 
-## Visão geral
+## O que mudou entre 21/07 e 21/08 (causa do falso-positivo `FALHA(B)`)
 
-3 etapas num stepper único, mesma URL (sem mudança de rota entre etapas):
+| | Julho | Agosto |
+|---|---|---|
+| Etapas | 3 (Dados · Agendamento · Confirmação) | **4** (Dados · **Endereço** · Agendamento · Confirmação) |
+| Campos de endereço | na tela **Dados** | na tela **Endereço** |
+| Rota | uma só, sem mudar entre etapas | **uma rota por etapa** |
 
-1. **Dados** — dados pessoais + endereço completo numa única tela
-2. **Agendamento** — vencimento da fatura, e-mail, 2 datas de instalação, período, aceite de termos
-3. **Confirmação** — página de sucesso com resumo (o commit real acontece no submit da etapa 2)
+O checkpoint B esperava `#enderecoCobranca` ganhar valor na tela Dados. Em agosto esse campo não existe mais ali → poll de 30 s → `FALHA(B)` com o funil da Vivo **funcionando**. Lição: **ancorar avanço em rota, nunca em texto de tela** — o `<h1>` é idêntico nas quatro telas (`Olá, vamos iniciar sua compra online`).
 
----
+## Rotas por etapa (sinal primário de avanço)
 
-## Etapa 1 — Dados
+```
+/checkouts/fibra/dados
+/checkouts/fibra/endereco
+/checkouts/fibra/agendamento
+/checkouts/fibra/confirmacao/<numeroDoPedido>
+```
 
-Todos os campos com **IDs estáveis e semânticos** (usar como seletores primários):
+## Etapa 1 — Dados (`/dados`)
 
 | Campo | Seletor | Observações |
 |---|---|---|
 | Nome completo | `#Name` | |
-| Celular | `#Phone` | máscara `(11) 98175-0915` — digitar só dígitos |
-| CPF | `#cpf` | minúsculo! máscara `462.862.950-11` |
+| Celular | `#Phone` | máscara `(11) 96487-2745` |
+| CEP | `#Cep` | dispara `GET viacep.com.br/ws/<cep>/json/` |
+| Número da residência | `#Numero` | **está nesta tela**; reaparece preenchido na etapa Endereço |
+| CPF | `#cpf` | minúsculo; backend aceita CPF sintético mod-11 |
 | Data de nascimento | `#dataNascimento` | máscara `DD/MM/AAAA` |
-| CEP | `#Cep` | **dispara autofill**: preenche Endereço, Bairro, UF e Cidade sozinho |
-| Endereço | `#enderecoCobranca` | autofill — não sobrescrever |
-| Número | `#Numero` | preencher manualmente |
-| Bairro | `#Bairro` | autofill |
-| Estado | `#UF` (select) | autofill; só 14 UFs no select |
-| Cidade | `#Cidade` | autofill |
-| Tipo do imóvel | radios `#Casa` / `#Edifício` (name `tipoImovel`) | **"Casa" vem pré-selecionado**. ID com acento em "Edifício" |
-| Andar | `#Extra3` | **condicional — só existe com "Edifício" selecionado**. ID nada semântico |
-| Complemento | `#Complemento` | |
-| Referência | `#EntregaPontoReferencia` | |
-| Quadra e lote | checkbox `[name="isQuadraLote"]` | marca → surgem campos Quadra/Lote |
 
-**Botão avançar:** texto `Continuar compra`, `type="button"`, mas `title="Volte para o passo anterior"` (bug da Vivo — **não localizar por title/aria**; usar texto ou posição).
+Botão: texto **"Continuar compra"**, `type="button"`, `title="Avançar para o próximo passo"`. Localizar **por texto** (em julho o title vinha errado — não confiar nele).
 
-**Validação:** ao clicar com campos inválidos, aparecem mensagens inline: `Campo obrigatório`, `CPF inválido`, `Telefone inválido`, `Formato da data inválido` — bordas vermelhas + ícone de alerta. Útil como marcador de erro em screenshots.
+## Etapa 2 — Endereço (`/endereco`)
 
-## Etapa 2 — Agendamento
+Aqui vive o autofill do CEP.
 
 | Campo | Seletor | Observações |
 |---|---|---|
-| Vencimento da fatura | radios `#01 #06 #10 #17 #21 #26` (name `dataVencimentoConta`) | IDs numéricos |
-| E-mail (fatura digital) | `#Mail` | **e-mail só existe nesta etapa** (no fluxo antigo ficava no scenario da etapa de cadastro) |
-| Data instalação 1 | select `#dataAgendamentoEquipamento` | values ISO `2026-07-22` |
-| Período 1 | radios `#manha` / `#tarde` (name `periodoAgendamentoEquipamento`) | "Manhã" pré-selecionado |
-| Data instalação 2 | select `#DataAgendamentoEquipamento2` | capitalização inconsistente (D maiúsculo) |
-| Período 2 | segundo grupo manhã/tarde | |
-| Termos | checkbox antes do botão | obrigatório |
+| CEP | `#Cep` | ecoado |
+| Endereço | `#enderecoCobranca` | **autofill** (ViaCEP `logradouro`) |
+| Número | `#Numero` | já vem da etapa anterior |
+| Bairro | `#Bairro` | autofill |
+| Estado | `#UF` (select) | autofill |
+| Cidade | `#Cidade` | autofill |
+| Tipo do imóvel | radios `name="tipoImovel"`, valores `Casa` / `Edifício` | **Casa vem marcado**; ids `#Casa` / `#Edifício` (com acento) |
+| Andar | `#Extra3` | condicional — só com Edifício |
+| Complemento | `#Complemento` | |
+| Referência | `#EntregaPontoReferencia` | |
+| Quadra e lote | checkbox `name="isQuadraLote"` | **sem id** |
 
-**Botão avançar:** texto `Continuar compra`, `type="submit"` (difere da etapa 1), mesmo title errado. **Este submit é o commit real do pedido.**
+Botões: "Voltar" e "Continuar compra" (ambos `type="button"`).
 
-## Etapa 3 — Confirmação
+## Etapa 3 — Agendamento (`/agendamento`)
 
-Página de sucesso, sem interação. Marcadores para asserção:
-
-- Heading: `Pedido realizado com sucesso! ✅`
-- Bloco "Resumo do pedido" com todos os dados ecoados (produto, dados, agendamento)
-- Heading secundário: `Sua solicitação está em análise!`
-- Aviso de contato via WhatsApp (11) 99915-1515
-
----
-
-## Armadilhas críticas para o Actor
-
-1. **Hidratação:** interações logo após o load são **silenciosamente ignoradas** (clique não foca, digitação não registra, sem erro). Reproduzido em teste — é a explicação mais provável do print do bot com formulário vazio e sem alertas. Mitigação: após digitar, **verificar `el.value`; se vazio, aguardar e repetir** (retry-loop), ou aguardar marcador de hidratação antes da 1ª interação.
-2. **Inputs React controlados por `onChange`:** atribuição direta de `value` via DOM não registra no estado. Usar digitação real (Playwright `type`/`fill`) ou native setter + `dispatchEvent('input')`.
-3. **Classes CSS hasheadas por build** (`input_inputData__T4bNK` etc.) — mudam a cada deploy. Nunca usar como seletor. IDs são estáveis.
-4. **`title` dos botões está errado** ("Volte para o passo anterior" em ambos os botões de avançar). Localizar por texto `Continuar compra`.
-5. **Campos condicionais:** Andar (`#Extra3`) só com Edifício; Quadra/Lote só com checkbox marcado.
-6. **Autofill do CEP é assíncrono** — aguardar `#enderecoCobranca` ter valor antes de avançar.
-7. **Instabilidade do renderer:** durante o teste houve travamentos de captura (CDP timeout ~30s) mesmo com a página funcional. Prints do monitor podem falhar por isso, sem o fluxo estar quebrado.
-8. **Backend aceita CPF sintético mod-11** — viabilidade do CEP validada no submit da etapa 1.
-
-## Fluxo antigo (contingência) — referência da run 7nLsRilt7JQMhuHeY (16/07/2026, SUCCEEDED)
-
-Checkpoints do Actor atual e telas correspondentes:
-
-| CP | Nome | Tela |
+| Campo | Seletor | Observações |
 |---|---|---|
-| Z | Landing Page | Catálogo com cards de planos (18 cards); entrada via `link.href` / anchor |
-| A | Cadastro inicial | "Informe seus dados pessoais": Nome, Celular, CEP (com busca + "Não sei o CEP"), Número + card Total/Continuar |
-| B | Dados pessoais | CPF, Data de nascimento, **E-mail** + card Resumo/Continuar |
-| C | Endereço de instalação | Endereço readonly (autofill do CEP) + quadra/lote + "Você mora em: Casa/Edifício" |
-| D | Validação de crédito (Topaz) | Observacional (topaz não interceptado na última run) |
-| E | Agendamento | Vencimento (select "Dia 1"), 1ª/2ª opção de data (selects), períodos, termos, botão **"Concluir pedido"** |
-| F | Confirmação | "Olá, {nome}" + próximos passos + resumo; `leadId` capturado via asb |
+| Vencimento | radios `name="dataVencimentoConta"`, ids `#01 #06 #10 #17 #21 #26` | `01` pré-marcado |
+| E-mail | `#Mail` | **o e-mail só existe nesta etapa** (no Infinity ficava na tela B) |
+| Data instalação 1 | select `#dataAgendamentoEquipamento` | values ISO |
+| Período 1 | radios `name="periodoAgendamentoEquipamento"` | "Manhã" pré-marcado |
+| Data instalação 2 | select `#DataAgendamentoEquipamento2` | capitalização inconsistente é do site |
+| Período 2 | radios `name="PeriodoAgendamentoEquipamento2"` | |
+| Termos | checkbox `name="optInTerms"` | **sem id**, obrigatório |
 
-Diferenças estruturais para o fluxo novo: fluxo antigo divide cadastro/dados/endereço em 3 telas (A/B/C) e tem e-mail na tela B; fluxo novo funde tudo na etapa "Dados" e move o e-mail para "Agendamento". Botão final antigo: "Concluir pedido"; novo: "Continuar compra". Layout antigo tem card "Resumo"/"Total" com botão dentro; novo tem carrinho lateral sem botão.
+⚠️ **Os dois grupos de período repetem os ids `#manha`/`#tarde`** — só o `name` distingue. Nunca localizar período por id.
 
-## Detecção de fluxo (novo vs. contingência)
+Botão: "Continuar compra", **`type="submit"`** — este é o commit real do pedido.
 
-Marcadores do fluxo novo (verificar após load, pós-hidratação):
+## Etapa 4 — Confirmação (`/confirmacao/<pedido>`)
 
-- `document.querySelector('#Name')` existe **e** título H1 = `Olá, vamos iniciar sua compra online`
-- Stepper com 3 labels: Dados / Agendamento / Confirmação
-- URL de checkout: `internet.vivo.com.br/checkouts/fibra/`
+- `<h1>`: `Pedido realizado com sucesso! ✅` (única tela com h1 próprio)
+- **Número do pedido vem no path** (ex.: `20260821-5757026`) e é o mesmo `transaction_id` do evento `purchase` no dataLayer
+- Sem formulário
 
-Marcadores do fluxo antigo: heading `Informe seus dados pessoais` com apenas 4 campos (Nome/Celular/CEP/Número) e card "Total"; botão final `Concluir pedido`.
+## Backend e dependências
 
-Se nenhum marcador bater → status "fluxo desconhecido" no alerta (não confundir com site fora do ar).
+| O quê | Endpoint | Resposta observada |
+|---|---|---|
+| Transacional (substitui o `/asb`) | `POST asbb2c.accenture.com/api/` | auth: `{"response":{"status":200,"result":{"token":"<jwt>"}}}` · lead: `{"response":{"status":200,"result":"102\|64044654\|DUPLICADO\| 0.027"}}` |
+| Autofill de endereço | `GET viacep.com.br/ws/<cep>/json/` | 200 + `logradouro`/`bairro`/`localidade`/`uf` |
+| Datas de instalação | `GET brasilapi.com.br/api/feriados/v1/<ano>` | 200 + feriados |
 
-## Regras confirmadas do INPUT da run (n8n → Actor)
+Observações que mudam o desenho do monitor:
 
-```json
-{
-  "scenario": {
-    "nome": "Teste Teste", "celular": "(11) 9XXXX-XXXX (Faker)",
-    "cpf": "CPF sintético mod-11", "dataNascimento": "variável",
-    "email": "teste@teste.com.br", "cep": "05427-010 (pool)",
-    "numeroResidencia": "variável", "complemento": "1", "andar": "1",
-    "pontoReferencia": "1", "tipoImovel": "Edificio"
-  },
-  "entry": { "productsIds": "235", "promotion": "600" },
-  "config": { "timeoutPorStepMs": 30000, "capturarScreenshots": true,
-              "headless": true, "proxyMode": "none", "warmup": true }
-}
-```
+1. **O checkout Tático não consulta cobertura FTTH.** Nenhuma chamada de viabilidade aparece em nenhuma das duas capturas — inclusive com CEP de cidade sem cobertura boa (28640-000, Carmo/RJ), o fluxo segue igual. A cobertura é avaliada **entre o pedido e a aprovação da venda**, fora do site. O monitor mede *funil*, não cobertura — e não deve prometer o contrário.
+2. **Duas dependências de terceiro no caminho crítico** (ViaCEP e brasilapi). Se uma cai, a tela quebra sem culpa da Vivo — o alerta precisa dizer isso, senão vira escalada errada.
+3. **CEP geral quebra o autofill.** CEP de cidade pequena responde 200 com `logradouro: ""` (foi o caso do 28640-000): Endereço e Bairro vêm vazios e o form trava em "Campo obrigatório". **Regra do pool: só CEP com logradouro no ViaCEP.**
+4. **Marcador do lead mudou:** Infinity devolvia `112|<leadId>|INVALIDO|ms`; o Tático devolve `102|<leadId>|DUPLICADO|ms`. O acordo de descarte com a mídia Vivo se apoiava no `INVALIDO` — precisa ser reconfirmado.
+5. O avanço da etapa Dados **já grava um lead** no backend (um `102|...` por avanço), então uma run completa produz mais de um lead.
+6. Não há Topaz no Tático — o checkpoint D é observacional e retorna imediato.
 
-Output do Actor (dataset): `leadId`, `orderNumber`, `topazScore`, `checkpoints[]` (id, nome, status, durationMs, screenshotUrl, detalhe), `debug` (proxyMode, userAgent, warmup), `error`/`failedAt`. **Manter este contrato no novo fluxo** para não quebrar o n8n.
+## Armadilhas do Actor (todas confirmadas na página real)
 
-**E-mail padrão: `teste@teste.com.br`** (confirmado pelo INPUT; o teste manual de hoje usou teste@gmail.com apenas pontualmente). Descarte dos pedidos sintéticos: Topaz reprova por fraude/crédito (checkpoint D é observacional via data layer).
+1. **Hidratação:** interação antes dela é silenciosamente ignorada. Usar `waitForHydration` (existência de `__reactProps$`) e verificar `el.value` depois de digitar.
+2. **Inputs React controlados:** atribuir `.value` não registra no estado — digitar de verdade (`pressSequentially`).
+3. **Classes CSS hasheadas por build** (`input_inputData__T4bNK`) — nunca usar como seletor. IDs e `name` são estáveis.
+4. **Radios/checkboxes customizados:** o `<input>` real é invisível; clicar no `<label>` ancestral (fallback: `el.click()` programático) e conferir o `checked`.
+5. **Texto de tela não distingue etapa** — só rota.
+6. **Instabilidade de captura:** já houve timeout de CDP (~30 s) com a página funcional; screenshot é best-effort e não deve derrubar o fluxo.
 
-## Dados de teste usados (regras do monitoramento)
+## Mapeamento checkpoint → etapa (contrato mantido com o n8n)
 
-- Nome: Teste Teste · CPF sintético mod-11 · Celular Faker `(11) 98175-0915`
-- Nascimento: 01/01/1997 · CEP do pool: 05427-010 (Rua Fernão Dias, Pinheiros/SP)
-- E-mail: teste@gmail.com (⚠️ prefill do Actor atual usa `teste@teste.com.br` — alinhar)
-- Tipo imóvel: Edifício, nº 111, complemento/andar/referência = "1"
-- Vencimento: dia 01 · Instalação: 1ª data disponível (manhã) + 2ª data (manhã)
+| CP | Nome (n8n) | Tático faz |
+|---|---|---|
+| Z | Landing Page | catálogo `total.json` + monta o deep link |
+| A | Cadastro inicial | hidratação + nome, celular, CEP (aguarda ViaCEP), número |
+| B | Dados pessoais | CPF, nascimento → "Continuar compra" → rota `/endereco` |
+| C | Endereço de instalação | valida autofill + tipo de imóvel/complemento/referência → rota `/agendamento` |
+| D | Crédito (Topaz) | observacional; inexistente no Tático |
+| E | Agendamento | vencimento, e-mail, 2 datas, períodos, termos |
+| F | Confirmação | submit final → rota `/confirmacao/<pedido>`; pedido do path, leadId do asbb2c |
+
+Contrato de output preservado: `checkpoints[]`, `failedAt`, `leadId`, `orderNumber`, `topazScore`, `error`, `debug`. Novidades em `debug`: `flow.nome` (**Tático**/**Infinity**, para o alerta nomear o funil), `deps` (status de ViaCEP e brasilapi) e `tatico` (respostas do backend, sem o JWT).
+
+## Dados de teste (regras do monitoramento)
+
+Nome `Teste Teste` · CPF sintético mod-11 · celular Faker · nascimento variável · e-mail `teste@teste.com.br` · CEP do pool **com logradouro** (`05427-010`, Rua Fernão Dias, Pinheiros/SP) · tipo de imóvel Edifício com complemento/andar/referência = `1` · vencimento dia 01 · 1ª e 2ª data disponíveis, período manhã.
