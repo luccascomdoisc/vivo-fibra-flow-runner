@@ -37,19 +37,24 @@ export async function runF_novo(ctx) {
       marcador = lead.marcador ?? null;
     }
 
-    // (2) numero do pedido: dataLayer (primario) e URL (caso a Vivo passe a
-    // navegar de verdade entre as etapas algum dia).
-    try {
-      const extra = await page.evaluate(() => {
-        const flat = JSON.stringify(window.dataLayer ?? []);
-        const tx = flat.match(/"transaction_id"\s*:\s*"?([\w-]+)"?/i);
-        const lead = flat.match(/"lead[_ ]?id"\s*:\s*"?(\d+)"?/i);
-        return { tx: tx?.[1] ?? null, lead: lead?.[1] ?? null };
-      });
-      if (extra.tx) state.orderNumber = extra.tx;
-      if (!state.leadId && extra.lead) state.leadId = extra.lead;
-    } catch {
-      /* melhor-esforco */
+    // (2) numero do pedido, em ordem de confiabilidade:
+    //   a) hit de telemetria capturado pelo listener (ep.transaction_id / oid);
+    //   b) dataLayer, se a Vivo passar a expor transaction_id ali;
+    //   c) URL, se algum dia houver navegacao real entre as etapas.
+    state.orderNumber = net.getOrderNumber();
+    if (!state.orderNumber || !state.leadId) {
+      try {
+        const extra = await page.evaluate(() => {
+          const flat = JSON.stringify(window.dataLayer ?? []);
+          const tx = flat.match(/"transaction_id"\s*:\s*"?([\w-]+)"?/i);
+          const lead = flat.match(/"lead[_ ]?id"\s*:\s*"?(\d+)"?/i);
+          return { tx: tx?.[1] ?? null, lead: lead?.[1] ?? null };
+        });
+        if (!state.orderNumber && extra.tx) state.orderNumber = extra.tx;
+        if (!state.leadId && extra.lead) state.leadId = extra.lead;
+      } catch {
+        /* melhor-esforco */
+      }
     }
     if (!state.orderNumber) {
       const m = page.url().match(/\/confirmacao\/([^/?#]+)/);

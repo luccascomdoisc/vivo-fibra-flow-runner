@@ -33,9 +33,23 @@ export function attachNetworkCapture(page) {
   const tatico = []; // [{ status, innerStatus, codigo, leadId, marcador, ms }]
   let viacep = null; // { status, cep, logradouro, bairro, cidade, uf, temLogradouro }
   let feriados = null; // { status }
+  let orderNumber = null;
 
   page.on('response', async (response) => {
     const url = response.url();
+
+    // Numero do pedido do Tatico (ex.: 20260821-5757026). Ele NAO esta no
+    // window.dataLayer com a chave transaction_id (tentado, run 21/08 20:53
+    // voltou n/a) e nao aparece na URL da pagina — mas viaja nos hits de
+    // telemetria que a propria pagina dispara: ep.transaction_id no
+    // g/collect do GA4 e oid no measurement/conversion. Pegamos de la.
+    if (!orderNumber) {
+      const m = url.match(/[?&](?:ep\.transaction_id|oid)=([^&]+)/);
+      if (m) {
+        const v = decodeURIComponent(m[1]).trim();
+        if (v && v !== 'undefined') orderNumber = v;
+      }
+    }
 
     // Buffer generico de chamadas de API (metadados only, sem corpo): dominios Vivo
     // + os hosts de backend/terceiro do Tatico. Pixels de ads/analytics ficam de
@@ -170,5 +184,6 @@ export function attachNetworkCapture(page) {
     getTaticoLead: () => [...tatico].reverse().find((t) => t.tipo === 'lead') ?? null,
     getViaCep: () => viacep,
     getFeriados: () => feriados,
+    getOrderNumber: () => orderNumber,
   };
 }
