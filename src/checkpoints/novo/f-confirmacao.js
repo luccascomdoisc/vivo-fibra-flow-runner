@@ -1,5 +1,5 @@
 import { ANCHORS_NOVO } from '../../lib/constants.js';
-import { clickContinuarCompra, waitForText, makeResult } from '../../lib/checkpoint.js';
+import { clickContinuarCompra, waitForText, makeResult, avisar } from '../../lib/checkpoint.js';
 import { captureScreenshot } from '../../lib/screenshot.js';
 
 /**
@@ -25,7 +25,8 @@ export async function runF_novo(ctx) {
   let screenshotUrl = null;
 
   try {
-    await clickContinuarCompra(page);
+    const viaBotao = await clickContinuarCompra(page);
+    if (viaBotao !== 'texto') avisar(state, `botao de conclusao localizado por ${viaBotao} — a copy do botao mudou`);
     await waitForText(page, ANCHORS_NOVO.SUCESSO, config.timeoutPorStepMs);
     screenshotUrl = await captureScreenshot(page, 'F', config.capturarScreenshots);
 
@@ -65,7 +66,7 @@ export async function runF_novo(ctx) {
       'ok',
       start,
       screenshotUrl,
-      `Tatico; pedido concluido; pedido=${state.orderNumber ?? 'n/a'}; leadId=${state.leadId ?? 'n/a'}${marcador ? `; marcador=${marcador}` : ''}`,
+      `Tatico; pedido concluido (botao via ${viaBotao}); pedido=${state.orderNumber ?? 'n/a'}; leadId=${state.leadId ?? 'n/a'}${marcador ? `; marcador=${marcador}` : ''}`,
     );
   } catch (e) {
     return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);

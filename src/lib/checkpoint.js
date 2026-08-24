@@ -106,8 +106,9 @@ export async function waitOkSignal(page, net, { nextAnchor = null, subType = nul
 //  1. Interacoes ANTES da hidratacao sao silenciosamente ignoradas (sem erro).
 //  2. Atribuicao direta de .value NAO registra no estado React -> digitar de verdade.
 //  3. Classes CSS sao hasheadas por build -> NUNCA usar como seletor.
-//  4. O botao de avanco tem title ERRADO ("Volte para o passo anterior") -> localizar
-//     pelo texto "Continuar compra", nunca por title/aria.
+//  4. O botao de avanco NAO tem propriedade estavel: o texto muda ("Continuar
+//     compra" -> "Continuar pedido" em 24/08) e o title ja veio errado em julho.
+//     Localizar em cascata (ver clickContinuarCompra), nunca por uma so pista.
 // ---------------------------------------------------------------------------
 
 /**
@@ -153,14 +154,74 @@ export async function fillByIdVerified(page, id, value, { timeout = 15000, tenta
 }
 
 /**
- * Clica o botao de avanco do fluxo novo pelo TEXTO "Continuar compra".
- * (title/aria do botao estao errados no site; ver regra 4 acima.)
+ * Clica o botao de avanco do fluxo novo. TRES estrategias em cascata, porque a
+ * Vivo ja mexeu nas duas propriedades obvias deste botao:
+ *   - jul/2026: texto "Continuar compra"; title ERRADO ("Volte para o passo anterior")
+ *   - ago/2026: title passou a estar correto ("Avançar para o próximo passo")
+ *   - 24/08/2026: o texto virou "Continuar pedido" -> derrubou o monitor por 1 palavra
+ *
+ * Ordem: texto (variantes conhecidas) -> title -> estrutural (ultimo botao visivel
+ * que nao seja "Voltar"). Retorna QUAL estrategia funcionou, para o checkpoint
+ * registrar em debug.avisos quando a copy mudar de novo — assim a proxima mudanca
+ * de texto vira um aviso no payload, nao um alerta de funil quebrado.
  */
 export async function clickContinuarCompra(page, { timeout = 15000 } = {}) {
-  const btn = page.locator('button', { hasText: 'Continuar compra' }).first();
-  await btn.waitFor({ state: 'visible', timeout });
-  await btn.scrollIntoViewIfNeeded().catch(() => {});
-  await btn.click();
+  const parcial = Math.max(3000, Math.floor(timeout / 3));
+
+  const porTexto = page
+    .locator('button')
+    .filter({ hasText: /continuar\s+(compra|pedido)|avan[çc]ar|prosseguir|finalizar/i })
+    .first();
+  if (await estaVisivel(porTexto, parcial)) {
+    await clicarLoc(porTexto);
+    return 'texto';
+  }
+
+  const porTitle = page.locator('button[title="Avançar para o próximo passo"]').first();
+  if (await estaVisivel(porTitle, parcial)) {
+    await clicarLoc(porTitle);
+    return 'title';
+  }
+
+  // Estrutural: nas telas do Tatico so existem "Voltar" e o botao de avanco.
+  const botoes = page.locator('button');
+  const total = await botoes.count().catch(() => 0);
+  for (let i = total - 1; i >= 0; i--) {
+    const b = botoes.nth(i);
+    const txt = String((await b.innerText().catch(() => '')) || '').trim();
+    if (/voltar/i.test(txt)) continue;
+    if (!(await b.isVisible().catch(() => false))) continue;
+    await clicarLoc(b);
+    return `estrutura ("${txt.slice(0, 30)}")`;
+  }
+
+  throw new Error('botao de avanco nao encontrado (falharam texto, title e estrutura)');
+}
+
+async function estaVisivel(loc, timeout) {
+  try {
+    await loc.waitFor({ state: 'visible', timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function clicarLoc(loc) {
+  await loc.scrollIntoViewIfNeeded().catch(() => {});
+  await loc.click();
+}
+
+/** Registra um aviso no debug do run (nao falha nada; serve de alerta antecipado). */
+export function avisar(state, msg) {
+  try {
+    if (state && state.debug) {
+      if (!Array.isArray(state.debug.avisos)) state.debug.avisos = [];
+      state.debug.avisos.push(msg);
+    }
+  } catch {
+    /* melhor-esforco */
+  }
 }
 
 /**

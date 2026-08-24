@@ -7,6 +7,7 @@ import {
   waitForHydration,
   marcarPorName,
   makeResult,
+  avisar,
   sleep,
 } from '../../lib/checkpoint.js';
 import { captureScreenshot } from '../../lib/screenshot.js';
@@ -25,7 +26,7 @@ import { captureScreenshot } from '../../lib/screenshot.js';
  *  - Form invalido nao navega: exibe validacao inline (coletada no detalhe).
  */
 export async function runC_novo(ctx) {
-  const { page, scenario, config } = ctx;
+  const { page, scenario, config, state } = ctx;
   const start = Date.now();
   let screenshotUrl = null;
   const notas = [];
@@ -71,7 +72,8 @@ export async function runC_novo(ctx) {
     await fillByIdVerified(page, NOVO_IDS.referencia, scenario.pontoReferencia ?? '1');
 
     screenshotUrl = await captureScreenshot(page, 'C', config.capturarScreenshots);
-    await clickContinuarCompra(page);
+    const viaBotao = await clickContinuarCompra(page);
+    if (viaBotao !== 'texto') avisar(state, `botao de avanco (etapa Endereco) localizado por ${viaBotao} — a copy do botao mudou`);
 
     try {
       await waitForCampo(page, NOVO_STEP_FIELDS.AGENDAMENTO, config.timeoutPorStepMs);
@@ -87,7 +89,7 @@ export async function runC_novo(ctx) {
       'ok',
       start,
       screenshotUrl,
-      `Tatico; autofill ok ("${endereco.slice(0, 40)}"); etapa Agendamento na tela${notas.length ? `; ${notas.join(' | ')}` : ''}`,
+      `Tatico; autofill ok ("${endereco.slice(0, 40)}"); botao via ${viaBotao}; etapa Agendamento na tela${notas.length ? `; ${notas.join(' | ')}` : ''}`,
     );
   } catch (e) {
     return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);

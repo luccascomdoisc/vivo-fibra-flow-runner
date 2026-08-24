@@ -5,6 +5,7 @@ import {
   coletarErrosValidacao,
   waitForCampo,
   makeResult,
+  avisar,
 } from '../../lib/checkpoint.js';
 import { captureScreenshot } from '../../lib/screenshot.js';
 
@@ -17,7 +18,7 @@ import { captureScreenshot } from '../../lib/screenshot.js';
  * honesto de "avancou" e o campo exclusivo da etapa seguinte estar na tela.
  */
 export async function runB_novo(ctx) {
-  const { page, net, config } = ctx;
+  const { page, net, config, state } = ctx;
   const { scenario } = ctx;
   const start = Date.now();
   let screenshotUrl = null;
@@ -26,8 +27,13 @@ export async function runB_novo(ctx) {
     await fillByIdVerified(page, NOVO_IDS.cpf, scenario.cpf);
     await fillByIdVerified(page, NOVO_IDS.dataNascimento, scenario.dataNascimento);
 
+    // A Vivo valida cada campo no blur. Sem sair do ultimo campo, ele fica
+    // "pendente" (sem o check verde) e polui o diagnostico de uma falha adiante.
+    await page.locator(`[id="${NOVO_IDS.dataNascimento}"]`).press('Tab').catch(() => {});
+
     screenshotUrl = await captureScreenshot(page, 'B', config.capturarScreenshots);
-    await clickContinuarCompra(page);
+    const viaBotao = await clickContinuarCompra(page);
+    if (viaBotao !== 'texto') avisar(state, `botao de avanco (etapa Dados) localizado por ${viaBotao} — a copy do botao mudou`);
 
     try {
       await waitForCampo(page, NOVO_STEP_FIELDS.ENDERECO, config.timeoutPorStepMs);
@@ -44,7 +50,7 @@ export async function runB_novo(ctx) {
     const lead = net.getTaticoLead();
     const viaApi = lead ? `; asbb2c ${lead.codigo}|${lead.marcador} lead=${lead.leadId ?? 'n/a'}` : '';
 
-    return makeResult('ok', start, screenshotUrl, `Tatico; etapa Dados submetida; etapa Endereco na tela${viaApi}`);
+    return makeResult('ok', start, screenshotUrl, `Tatico; etapa Dados submetida (botao via ${viaBotao}); etapa Endereco na tela${viaApi}`);
   } catch (e) {
     return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);
   }

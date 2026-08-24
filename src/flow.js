@@ -42,7 +42,7 @@ export async function runFlow(input) {
     orderNumber: null,
     topazScore: null,
     error: null,
-    debug: { proxyMode: config.proxyMode, userAgent: null, warmup: null, flow: null },
+    debug: { proxyMode: config.proxyMode, userAgent: null, warmup: null, flow: null, avisos: [] },
   };
 
   // ---- Checkpoint Z (HTTP, sem browser) ----

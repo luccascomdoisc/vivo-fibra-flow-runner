@@ -45,7 +45,7 @@ Subtítulos por etapa existem e são estáveis (`Informe os seus dados:`, `Agora
 | CPF | `#cpf` | minúsculo; backend aceita CPF sintético mod-11 |
 | Data de nascimento | `#dataNascimento` | máscara `DD/MM/AAAA` |
 
-Botão: texto **"Continuar compra"**, `type="button"`, `title="Avançar para o próximo passo"`. Localizar **por texto** (em julho o title vinha errado — não confiar nele).
+Botão de avanço: `type="button"`. **O rótulo dele muda** — "Continuar compra" (jul/ago) virou **"Continuar pedido"** em 24/08/2026, e isso sozinho derrubou o monitor por uma tarde. O `title` também já esteve errado (em julho vinha "Volte para o passo anterior" nos dois botões). Por isso o Actor localiza em cascata: **texto** (variantes conhecidas) → **`title="Avançar para o próximo passo"`** → **estrutural** (último botão visível que não seja "Voltar"). Quando cair na 2ª ou 3ª estratégia, o run registra o fato em `debug.avisos` — a próxima mudança de copy vira aviso, não queda.
 
 ## Etapa 2 — Endereço (`/endereco`)
 
@@ -65,7 +65,7 @@ Aqui vive o autofill do CEP.
 | Referência | `#EntregaPontoReferencia` | |
 | Quadra e lote | checkbox `name="isQuadraLote"` | **sem id** |
 
-Botões: "Voltar" e "Continuar compra" (ambos `type="button"`).
+Botões: "Voltar" e o de avanço (ambos `type="button"`) — rótulo do avanço é variável, ver etapa 1.
 
 ## Etapa 3 — Agendamento (`/agendamento`)
 
@@ -81,7 +81,7 @@ Botões: "Voltar" e "Continuar compra" (ambos `type="button"`).
 
 ⚠️ **Os dois grupos de período repetem os ids `#manha`/`#tarde`** — só o `name` distingue. Nunca localizar período por id.
 
-Botão: "Continuar compra", **`type="submit"`** — este é o commit real do pedido.
+Botão de avanço aqui é **`type="submit"`** — este é o commit real do pedido. Rótulo variável, ver etapa 1.
 
 ## Etapa 4 — Confirmação (`/confirmacao/<pedido>`)
 
@@ -121,7 +121,7 @@ Observações que mudam o desenho do monitor:
 |---|---|---|
 | Z | Landing Page | catálogo `total.json` + monta o deep link |
 | A | Cadastro inicial | hidratação + nome, celular, CEP (aguarda ViaCEP), número |
-| B | Dados pessoais | CPF, nascimento → "Continuar compra" → aparece `#enderecoCobranca` |
+| B | Dados pessoais | CPF, nascimento → botão de avanço → aparece `#enderecoCobranca` |
 | C | Endereço de instalação | valida autofill + tipo de imóvel/complemento/referência → aparece `#Mail` |
 | D | Crédito (Topaz) | observacional; inexistente no Tático |
 | E | Agendamento | vencimento, e-mail, 2 datas, períodos, termos |
