@@ -3,20 +3,20 @@ import { clickContinuarCompra, waitForText, makeResult, avisar } from '../../lib
 import { captureScreenshot } from '../../lib/screenshot.js';
 
 /**
- * [TATICO] Checkpoint F - Confirmacao: submete o Agendamento (o botao "Continuar
+ * [INFINITY] Checkpoint F - Confirmacao: submete o Agendamento (o botao "Continuar
  * compra" desta etapa e type="submit" — e o commit real do pedido) e aguarda a
  * tela de sucesso.
  *
  * Sinal de sucesso: o texto "Pedido realizado com sucesso" — esta e a UNICA tela
- * do Tatico com <h1> proprio, e por isso a unica em que ancora de texto e legitima.
+ * do Infinity com <h1> proprio, e por isso a unica em que ancora de texto e legitima.
  * A URL nao ajuda: continua em /checkouts/fibra/ (o /confirmacao/<pedido> que
  * aparece nas capturas e path virtual de GA).
  *
  * Numero do pedido: transaction_id do evento purchase no dataLayer.
- * leadId: backend Tatico (asbb2c) — "112|<leadId>|<marcador>|<ms>".
+ * leadId: backend Infinity (asbb2c) — "112|<leadId>|<marcador>|<ms>".
  *
- * Marcador do lead: o Infinity devolvia INVALIDO (base do acordo de descarte com
- * a midia Vivo). No Tatico ja vimos INVALIDO (CPF novo) e DUPLICADO (CPF/e-mail
+ * Marcador do lead: o Tatico devolvia INVALIDO (base do acordo de descarte com
+ * a midia Vivo). No Infinity ja vimos INVALIDO (CPF novo) e DUPLICADO (CPF/e-mail
  * repetido) — guardamos o marcador no detalhe para acompanhar.
  */
 export async function runF_novo(ctx) {
@@ -66,9 +66,9 @@ export async function runF_novo(ctx) {
       'ok',
       start,
       screenshotUrl,
-      `Tatico; pedido concluido (botao via ${viaBotao}); pedido=${state.orderNumber ?? 'n/a'}; leadId=${state.leadId ?? 'n/a'}${marcador ? `; marcador=${marcador}` : ''}`,
+      `Infinity; pedido concluido (botao via ${viaBotao}); pedido=${state.orderNumber ?? 'n/a'}; leadId=${state.leadId ?? 'n/a'}${marcador ? `; marcador=${marcador}` : ''}`,
     );
   } catch (e) {
-    return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);
+    return makeResult('fail', start, screenshotUrl, `Infinity; erro: ${e.message}`);
   }
 }

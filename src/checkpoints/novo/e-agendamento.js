@@ -3,8 +3,8 @@ import { fillByIdVerified, makeResult, marcarPorName, sleep } from '../../lib/ch
 import { captureScreenshot } from '../../lib/screenshot.js';
 
 /**
- * [TATICO] Checkpoint E - Agendamento (/checkouts/fibra/agendamento): vencimento
- * da fatura, e-mail da fatura digital (no Infinity o e-mail ficava na tela B),
+ * [INFINITY] Checkpoint E - Agendamento (/checkouts/fibra/agendamento): vencimento
+ * da fatura, e-mail da fatura digital (no Tatico o e-mail ficava na tela B),
  * duas datas de instalacao (selects nativos com value ISO), periodos e termos.
  *
  * Armadilhas confirmadas na recaptura 21/08:
@@ -39,7 +39,7 @@ export async function runE_novo(ctx) {
         ? `DEPENDENCIA EXTERNA: brasilapi/feriados HTTP ${fer.status}`
         : 'sem datas de instalacao disponiveis no select';
       screenshotUrl = await captureScreenshot(page, 'E', config.capturarScreenshots);
-      return makeResult('fail', start, screenshotUrl, `Tatico; ${causa}`);
+      return makeResult('fail', start, screenshotUrl, `Infinity; ${causa}`);
     }
     await sel1.selectOption(opcoes1[0]);
     await sel2.selectOption(opcoes2[1] ?? opcoes2[0]); // 2a data preferida (datas distintas)
@@ -65,9 +65,9 @@ export async function runE_novo(ctx) {
       termosOk ? 'ok' : 'fail',
       start,
       screenshotUrl,
-      `Tatico; datas=${opcoes1[0]}/${opcoes2[1] ?? opcoes2[0]}; termos=${termosOk ? 'ok' : 'NAO marcado'}; ${notas.join(' | ') || 'periodos ok'}`,
+      `Infinity; datas=${opcoes1[0]}/${opcoes2[1] ?? opcoes2[0]}; termos=${termosOk ? 'ok' : 'NAO marcado'}; ${notas.join(' | ') || 'periodos ok'}`,
     );
   } catch (e) {
-    return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);
+    return makeResult('fail', start, screenshotUrl, `Infinity; erro: ${e.message}`);
   }
 }

@@ -13,7 +13,7 @@ import {
 import { captureScreenshot } from '../../lib/screenshot.js';
 
 /**
- * [TATICO] Checkpoint C - Endereco de instalacao (/checkouts/fibra/endereco).
+ * [INFINITY] Checkpoint C - Endereco de instalacao (/checkouts/fibra/endereco).
  * Etapa criada pela Vivo depois do mapeamento de julho. Aqui e que vive o
  * autofill do CEP: Endereco, Bairro, Cidade e UF chegam preenchidos a partir da
  * resposta do ViaCEP disparada na etapa anterior.
@@ -45,7 +45,7 @@ export async function runC_novo(ctx) {
     }
     if (!endereco.trim()) {
       screenshotUrl = await captureScreenshot(page, 'C', config.capturarScreenshots);
-      return makeResult('fail', start, screenshotUrl, 'Tatico; autofill do CEP nao preencheu o Endereco na etapa /endereco');
+      return makeResult('fail', start, screenshotUrl, 'Infinity; autofill do CEP nao preencheu o Endereco na etapa /endereco');
     }
 
     const bairro = await page.locator(`[id="${NOVO_IDS.bairro}"]`).inputValue().catch(() => '');
@@ -80,8 +80,8 @@ export async function runC_novo(ctx) {
     } catch {
       const erros = await coletarErrosValidacao(page);
       const detalhe = erros.length
-        ? `Tatico; form invalido na etapa Endereco: ${erros.join(', ')}`
-        : 'Tatico; sem avanco apos Continuar compra (etapa Agendamento nao apareceu)';
+        ? `Infinity; form invalido na etapa Endereco: ${erros.join(', ')}`
+        : 'Infinity; sem avanco apos Continuar compra (etapa Agendamento nao apareceu)';
       return makeResult('fail', start, screenshotUrl, detalhe);
     }
 
@@ -89,9 +89,9 @@ export async function runC_novo(ctx) {
       'ok',
       start,
       screenshotUrl,
-      `Tatico; autofill ok ("${endereco.slice(0, 40)}"); botao via ${viaBotao}; etapa Agendamento na tela${notas.length ? `; ${notas.join(' | ')}` : ''}`,
+      `Infinity; autofill ok ("${endereco.slice(0, 40)}"); botao via ${viaBotao}; etapa Agendamento na tela${notas.length ? `; ${notas.join(' | ')}` : ''}`,
     );
   } catch (e) {
-    return makeResult('fail', start, screenshotUrl, `Tatico; erro: ${e.message}`);
+    return makeResult('fail', start, screenshotUrl, `Infinity; erro: ${e.message}`);
   }
 }

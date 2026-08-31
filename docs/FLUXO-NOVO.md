@@ -1,11 +1,11 @@
-# Vivo Fibra — Mapeamento do fluxo **Tático** (checkout BAU)
+# Vivo Fibra — Mapeamento do fluxo **Infinity** (checkout novo, contingência)
 
 **URL:** `https://internet.vivo.com.br/checkouts/fibra/?id=<id>&offer=<offer>`
 **Mapeado em:** 21/07/2026 · **recapturado em 21/08/2026** (duas execuções reais, dados sintéticos)
 **Stack:** Next.js App Router, 100% client-rendered após hidratação.
 
-> **Nomes de negócio (usar no alerta):** **Tático** = fluxo BAU, este checkout. **Infinity** = fluxo de contingência, quando o BAU dá problema (`loja.vivo.com.br` + BFF `unicommerceTacticalB2CBff`). A URL de cadastro do Infinity **redireciona** para o Tático quando ele está ativo.
-> Pegadinha: o BFF do Infinity se chama *unicommerceTactical* e a LP carrega `id_origem_vivo=TaticoLP` — ali "Tático" é a LP de mídia, não a plataforma de checkout.
+> **Nomes de negócio (usar no alerta):** **Infinity** = fluxo de contingência, **este checkout** (`internet.vivo.com.br/checkouts/fibra`). **Tático** = fluxo BAU (`loja.vivo.com.br`, a "lojaonline", + BFF `unicommerceTacticalB2CBff`). A URL de cadastro do Tático **redireciona** para cá quando o Infinity está ativo.
+> **Correção 31/08/2026:** os rótulos estavam invertidos neste doc e no actor desde 21/08 (este checkout saía como "Tático" nos alertas). O BFF *unicommerceTactical* pertence mesmo ao Tático (loja.vivo); a LP carrega `id_origem_vivo=TaticoLP` (nome da LP de mídia, não da plataforma).
 
 ## O que mudou entre 21/07 e 21/08 (causa do falso-positivo `FALHA(B)`)
 
@@ -72,7 +72,7 @@ Botões: "Voltar" e o de avanço (ambos `type="button"`) — rótulo do avanço 
 | Campo | Seletor | Observações |
 |---|---|---|
 | Vencimento | radios `name="dataVencimentoConta"`, ids `#01 #06 #10 #17 #21 #26` | `01` pré-marcado |
-| E-mail | `#Mail` | **o e-mail só existe nesta etapa** (no Infinity ficava na tela B) |
+| E-mail | `#Mail` | **o e-mail só existe nesta etapa** (no Tático ficava na tela B) |
 | Data instalação 1 | select `#dataAgendamentoEquipamento` | values ISO |
 | Período 1 | radios `name="periodoAgendamentoEquipamento"` | "Manhã" pré-marcado |
 | Data instalação 2 | select `#DataAgendamentoEquipamento2` | capitalização inconsistente é do site |
@@ -99,12 +99,12 @@ Botão de avanço aqui é **`type="submit"`** — este é o commit real do pedid
 
 Observações que mudam o desenho do monitor:
 
-1. **O checkout Tático não consulta cobertura FTTH.** Nenhuma chamada de viabilidade aparece em nenhuma das duas capturas — inclusive com CEP de cidade sem cobertura boa (28640-000, Carmo/RJ), o fluxo segue igual. A cobertura é avaliada **entre o pedido e a aprovação da venda**, fora do site. O monitor mede *funil*, não cobertura — e não deve prometer o contrário.
+1. **O checkout Infinity não consulta cobertura FTTH.** Nenhuma chamada de viabilidade aparece em nenhuma das duas capturas — inclusive com CEP de cidade sem cobertura boa (28640-000, Carmo/RJ), o fluxo segue igual. A cobertura é avaliada **entre o pedido e a aprovação da venda**, fora do site. O monitor mede *funil*, não cobertura — e não deve prometer o contrário.
 2. **Duas dependências de terceiro no caminho crítico** (ViaCEP e brasilapi). Se uma cai, a tela quebra sem culpa da Vivo — o alerta precisa dizer isso, senão vira escalada errada.
 3. **CEP geral quebra o autofill.** CEP de cidade pequena responde 200 com `logradouro: ""` (foi o caso do 28640-000): Endereço e Bairro vêm vazios e o form trava em "Campo obrigatório". **Regra do pool: só CEP com logradouro no ViaCEP.**
-4. **Marcador do lead:** o formato pipe-separado continua igual ao do Infinity. Já vimos os dois casos: `112|<leadId>|INVÁLIDO|ms` com CPF novo (run do Actor em 21/08 20:42) e `102|<leadId>|DUPLICADO|ms` nas capturas manuais, que repetiram CPF/e-mail. Ou seja, o `INVÁLIDO` que embasa o acordo de descarte com a mídia Vivo **continua valendo** para as runs do monitor, que geram CPF novo a cada execução.
+4. **Marcador do lead:** o formato pipe-separado continua igual ao do Tático. Já vimos os dois casos: `112|<leadId>|INVÁLIDO|ms` com CPF novo (run do Actor em 21/08 20:42) e `102|<leadId>|DUPLICADO|ms` nas capturas manuais, que repetiram CPF/e-mail. Ou seja, o `INVÁLIDO` que embasa o acordo de descarte com a mídia Vivo **continua valendo** para as runs do monitor, que geram CPF novo a cada execução.
 5. O avanço da etapa Dados **já grava um lead** no backend (um `102|...` por avanço), então uma run completa produz mais de um lead.
-6. Não há Topaz no Tático — o checkpoint D é observacional e retorna imediato.
+6. Não há Topaz no Infinity — o checkpoint D é observacional e retorna imediato.
 
 ## Armadilhas do Actor (todas confirmadas na página real)
 
@@ -117,17 +117,17 @@ Observações que mudam o desenho do monitor:
 
 ## Mapeamento checkpoint → etapa (contrato mantido com o n8n)
 
-| CP | Nome (n8n) | Tático faz |
+| CP | Nome (n8n) | Infinity faz |
 |---|---|---|
 | Z | Landing Page | catálogo `total.json` + monta o deep link |
 | A | Cadastro inicial | hidratação + nome, celular, CEP (aguarda ViaCEP), número |
 | B | Dados pessoais | CPF, nascimento → botão de avanço → aparece `#enderecoCobranca` |
 | C | Endereço de instalação | valida autofill + tipo de imóvel/complemento/referência → aparece `#Mail` |
-| D | Crédito (Topaz) | observacional; inexistente no Tático |
+| D | Crédito (Topaz) | observacional; inexistente no Infinity |
 | E | Agendamento | vencimento, e-mail, 2 datas, períodos, termos |
 | F | Confirmação | submit final → texto de sucesso; pedido do `transaction_id` do dataLayer, leadId do asbb2c |
 
-Contrato de output preservado: `checkpoints[]`, `failedAt`, `leadId`, `orderNumber`, `topazScore`, `error`, `debug`. Novidades em `debug`: `flow.nome` (**Tático**/**Infinity**, para o alerta nomear o funil), `deps` (status de ViaCEP e brasilapi) e `tatico` (respostas do backend, sem o JWT).
+Contrato de output preservado: `checkpoints[]`, `failedAt`, `leadId`, `orderNumber`, `topazScore`, `error`, `debug`. Novidades em `debug`: `flow.nome` (**Infinity**/**Tático**, para o alerta nomear o funil), `deps` (status de ViaCEP e brasilapi) e `tatico` (respostas do backend, sem o JWT).
 
 ## Dados de teste (regras do monitoramento)
 

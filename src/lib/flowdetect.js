@@ -6,7 +6,8 @@ import { log } from 'apify';
  * Contexto (jul/2026): a URL antiga de cadastro (loja.vivo.com.br/produtos-vivo/
  * cadastro/vivofibra?productsIds&promotion) passou a REDIRECIONAR server-side para o
  * checkout novo (internet.vivo.com.br/checkouts/fibra/?id=...&offer=...). O fluxo
- * antigo continua existindo como contingencia: quando ele esta ativo, nao ha redirect.
+ * antigo (Tatico, o BAU) continua existindo: quando ele esta ativo, nao ha redirect
+ * — o redirect para o checkout novo significa que o Infinity (contingencia) esta servindo.
  * Logo, a deteccao e: goto na entryUrl -> inspecionar URL final + marcadores de DOM.
  *
  * Retorna { flow: 'novo' | 'antigo' | 'desconhecido', finalUrl, marker }.

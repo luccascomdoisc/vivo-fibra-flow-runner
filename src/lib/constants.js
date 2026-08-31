@@ -1,5 +1,5 @@
 // Constantes do fluxo Vivo Fibra.
-// Fontes: CHECKPOINTS.md (Infinity) + docs/FLUXO-NOVO.md (Tatico, recaptura 21/08/2026).
+// Fontes: CHECKPOINTS.md (Tatico) + docs/FLUXO-NOVO.md (Infinity, recaptura 21/08/2026).
 
 export const CATALOG_URL =
   'https://plataforma.portal.vivo.com.br/catalog/main/b2c/total.json';
@@ -7,21 +7,26 @@ export const CATALOG_URL =
 export const CADASTRO_BASE =
   'https://loja.vivo.com.br/produtos-vivo/cadastro/vivofibra';
 
-// Path do BFF transacional do Infinity (host: loja.vivo.com.br).
+// Path do BFF transacional do Tatico (host: loja.vivo.com.br).
 export const BFF_PREFIX = '/unicommerceTacticalB2CBff/v1/';
 
 // ---------------------------------------------------------------------------
 // Nomes de negocio dos dois fluxos de Fibra (a Vivo os chama assim).
 // Vao para debug.flow.nome e devem ser o rotulo usado no alerta do n8n.
-//  - Tatico   = BAU. Checkout novo, internet.vivo.com.br/checkouts/fibra.
-//  - Infinity = contingencia, quando o BAU da problema. loja.vivo.com.br + asb.
-// Cuidado com a pegadinha: o BFF do Infinity se chama "unicommerceTactical" e a
-// LP carrega id_origem_vivo=TaticoLP — ali "Tatico" e a LP de midia, nao a
-// plataforma de checkout.
+//  - Tatico   = BAU. Fluxo classico, loja.vivo.com.br ("lojaonline") + asb.
+//  - Infinity = contingencia, quando o BAU da problema. Checkout novo,
+//               internet.vivo.com.br/checkouts/fibra.
+// CORRECAO 31/08/2026: os rotulos saiam invertidos desde 21/08 (o checkout novo
+// era anunciado como "Tatico" no alerta). Confirmado com o time: Tatico e o de
+// loja.vivo — coerente com o BFF unicommerceTacticalB2CBff. A LP ainda carrega
+// id_origem_vivo=TaticoLP (nome da LP de midia, nao da plataforma).
+// ATENCAO: identificadores internos (novo/antigo, TATICO_API_MARKER,
+// debug.tatico, getTaticoLead) NAO foram renomeados de proposito — o n8n le
+// debug.tatico; ali "tatico" significa "backend do checkout novo" por historia.
 // ---------------------------------------------------------------------------
 export const FLOW_LABELS = {
-  novo: 'Tático',
-  antigo: 'Infinity',
+  novo: 'Infinity',
+  antigo: 'Tático',
   desconhecido: 'desconhecido',
   bloqueado_akamai: 'bloqueado (Akamai)',
 };
@@ -37,7 +42,7 @@ export const CHECKPOINTS = [
   { id: 'F', nome: 'Confirmacao' },
 ];
 
-// Texto-chave (ancora) estavel de cada tela do INFINITY. NAO usar copy promocional.
+// Texto-chave (ancora) estavel de cada tela do TATICO. NAO usar copy promocional.
 // A ancora de uma etapa serve para validar que a etapa ANTERIOR avancou.
 export const ANCHORS = {
   A: 'Informe seus dados pessoais',
@@ -48,14 +53,14 @@ export const ANCHORS = {
 };
 
 // ---------------------------------------------------------------------------
-// FLUXO TATICO (checkout Next.js em internet.vivo.com.br/checkouts/fibra).
-// A URL de cadastro do Infinity redireciona para ca quando o Tatico esta ativo;
-// o Infinity segue existindo como contingencia.
+// FLUXO INFINITY (checkout Next.js em internet.vivo.com.br/checkouts/fibra).
+// A URL de cadastro do Tatico redireciona para ca quando o Infinity esta ativo;
+// o Tatico segue sendo o BAU.
 // ---------------------------------------------------------------------------
 
 export const NOVO_URL_MARKER = '/checkouts/fibra';
 
-// O Tatico tem 4 etapas na MESMA URL. Duas armadilhas empilhadas:
+// O Infinity tem 4 etapas na MESMA URL. Duas armadilhas empilhadas:
 //  1. o <h1> e identico nas quatro telas ("Ola, vamos iniciar sua compra
 //     online") -> texto de tela nao distingue etapa (erro do mapeamento de julho);
 //  2. os paths /dados, /endereco, /agendamento, /confirmacao/<pedido> que
@@ -81,7 +86,9 @@ export const GA_VIRTUAL_PATHS = {
   CONFIRMACAO: '/checkouts/fibra/confirmacao/',
 };
 
-// Backend transacional do Tatico (substitui o /asb do Infinity).
+// Backend transacional do Infinity (substitui o /asb do Tatico).
+// O nome TATICO_API_MARKER e historico (anterior a correcao de rotulos de
+// 31/08) — nao renomear sem revisar o n8n, que le debug.tatico.
 // Resposta observada: {"response":{"status":200,"result":"102|64044654|DUPLICADO| 0.02"}}
 // e, antes de cada transacao, um {"result":{"token":"<jwt>"}} (auth — nunca logar).
 export const TATICO_API_MARKER = 'asbb2c.accenture.com/api';
@@ -94,7 +101,7 @@ export const FERIADOS_MARKER = 'brasilapi.com.br/api/feriados'; // datas (etapa 
 // Hosts nao-Vivo que interessam no buffer de debug.apiCalls.
 export const HOSTS_API_EXTRA = /(asbb2c\.accenture\.com|viacep\.com\.br|brasilapi\.com\.br)$/i;
 
-// Ancoras de texto do Tatico. So a de SUCESSO e confiavel (h1 muda nela);
+// Ancoras de texto do Infinity. So a de SUCESSO e confiavel (h1 muda nela);
 // as demais existem apenas como reforco — quem manda e NOVO_STEP_FIELDS.
 export const ANCHORS_NOVO = {
   DADOS: 'Informe os seus dados',
@@ -102,7 +109,7 @@ export const ANCHORS_NOVO = {
   SUCESSO: 'Pedido realizado com sucesso',
 };
 
-// IDs estaveis dos campos do Tatico (confirmados na recaptura de 21/08).
+// IDs estaveis dos campos do Infinity (confirmados na recaptura de 21/08).
 export const NOVO_IDS = {
   // etapa Dados (/dados) — 6 campos, sem endereco
   nome: 'Name',
@@ -125,7 +132,7 @@ export const NOVO_IDS = {
   dataInstalacao2: 'DataAgendamentoEquipamento2', // capitalizacao inconsistente e do site
 };
 
-// Atributos name do Tatico. Necessarios porque varios controles NAO tem id unico:
+// Atributos name do Infinity. Necessarios porque varios controles NAO tem id unico:
 // os radios de periodo repetem os ids #manha/#tarde nos dois grupos, e os
 // checkboxes de termos e quadra/lote nao tem id nenhum.
 export const NOVO_NAMES = {

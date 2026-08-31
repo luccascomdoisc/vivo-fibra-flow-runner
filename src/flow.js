@@ -67,14 +67,14 @@ export async function runFlow(input) {
     // Warm-up anti-Akamai antes de tocar no deep-link de cadastro (ver browser.js).
     if (config.warmup) state.debug.warmup = await warmUpAkamai(page, { timeout: config.timeoutPorStepMs });
 
-    // Navega e detecta qual fluxo a Vivo serviu (novo checkout vs contingencia).
+    // Navega e detecta qual fluxo a Vivo serviu (checkout novo/Infinity vs Tatico).
     // A entryUrl continua a mesma: quando o fluxo novo esta ativo, a Vivo redireciona
     // server-side para internet.vivo.com.br/checkouts/fibra/?id=...&offer=...
     const det = await navigateAndDetect(page, z.entryUrl, {
       timeout: config.timeoutPorStepMs,
       fallbackUrl: entry.checkoutUrl ?? null,
     });
-    // nome = rotulo de negocio do fluxo (Tatico / Infinity). O n8n usa esse campo
+    // nome = rotulo de negocio do fluxo (Infinity / Tatico). O n8n usa esse campo
     // para dizer no alerta QUAL funil quebrou, sem precisar traduzir novo/antigo.
     state.debug.flow = {
       detected: det.flow,
@@ -101,7 +101,7 @@ export async function runFlow(input) {
         status: 'fail',
         durationMs: 0,
         screenshotUrl: diag?.screenshotUrl ?? null,
-        detalhe: `fluxo DESCONHECIDO (nem checkout novo nem contingencia) || url=${diag?.url} | title=${diag?.title} | tela="${diag?.snippet ?? ''}"`,
+        detalhe: `fluxo DESCONHECIDO (nem checkout novo (Infinity) nem Tatico) || url=${diag?.url} | title=${diag?.title} | tela="${diag?.snippet ?? ''}"`,
       });
       state.error = 'Fluxo desconhecido: a pagina servida nao corresponde a nenhum fluxo conhecido.';
       return buildOutput({ runStartedAt, results, ...state, scenario });
@@ -146,7 +146,7 @@ export async function runFlow(input) {
         break; // os checkpoints seguintes permanecem 'skipped'
       }
     }
-    // Tatico: expoe as chamadas observadas + o estado das dependencias de
+    // Infinity: expoe as chamadas observadas + o estado das dependencias de
     // terceiro (ViaCEP para o autofill, brasilapi para as datas). Serve para o
     // alerta distinguir "funil da Vivo quebrou" de "terceiro caiu".
     if (state.debug.flow?.detected === 'novo') {

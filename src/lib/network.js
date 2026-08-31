@@ -11,11 +11,11 @@ import {
  * propria (isso quebraria a coerencia de fingerprint que vence o Akamai): ele
  * apenas escuta o que a propria pagina pede.
  *
- * INFINITY (loja.vivo.com.br):
+ * TATICO (loja.vivo.com.br):
  *  - /asb   -> indexado por SubType. result = "112|leadId|INVALIDO|ms".
  *  - /topaz -> status + score.
  *
- * TATICO (internet.vivo.com.br/checkouts/fibra):
+ * INFINITY (internet.vivo.com.br/checkouts/fibra):
  *  - asbb2c.accenture.com/api -> mesmo padrao pipe-separado, novo host:
  *      auth:  {"response":{"status":200,"result":{"token":"<jwt>"}}}   (token NAO e guardado)
  *      lead:  {"response":{"status":200,"result":"102|64044654|DUPLICADO| 0.027"}}
@@ -29,7 +29,7 @@ export function attachNetworkCapture(page) {
   const asb = new Map();
   let topaz = null;
   const apiCalls = [];
-  // Tatico
+  // Infinity
   const tatico = []; // [{ status, innerStatus, codigo, leadId, marcador, ms }]
   let viacep = null; // { status, cep, logradouro, bairro, cidade, uf, temLogradouro }
   let feriados = null; // { status }
@@ -38,7 +38,7 @@ export function attachNetworkCapture(page) {
   page.on('response', async (response) => {
     const url = response.url();
 
-    // Numero do pedido do Tatico (ex.: 20260821-5757026). Ele NAO esta no
+    // Numero do pedido do Infinity (ex.: 20260821-5757026). Ele NAO esta no
     // window.dataLayer com a chave transaction_id (tentado, run 21/08 20:53
     // voltou n/a) e nao aparece na URL da pagina — mas viaja nos hits de
     // telemetria que a propria pagina dispara: ep.transaction_id no
@@ -52,7 +52,7 @@ export function attachNetworkCapture(page) {
     }
 
     // Buffer generico de chamadas de API (metadados only, sem corpo): dominios Vivo
-    // + os hosts de backend/terceiro do Tatico. Pixels de ads/analytics ficam de
+    // + os hosts de backend/terceiro do Infinity. Pixels de ads/analytics ficam de
     // fora porque carregavam ".vivo.com.br" nos params e inundavam o buffer.
     try {
       const req = response.request();
@@ -74,7 +74,7 @@ export function attachNetworkCapture(page) {
       /* nunca derruba o fluxo por captura */
     }
 
-    // ---- Tatico: backend transacional ----
+    // ---- Infinity: backend transacional ----
     if (url.includes(TATICO_API_MARKER)) {
       try {
         const body = await response.json().catch(() => null);
@@ -104,7 +104,7 @@ export function attachNetworkCapture(page) {
       return;
     }
 
-    // ---- Tatico: dependencias de terceiro ----
+    // ---- Infinity: dependencias de terceiro ----
     if (url.includes(VIACEP_MARKER)) {
       try {
         const body = await response.json().catch(() => null);
@@ -131,7 +131,7 @@ export function attachNetworkCapture(page) {
       return;
     }
 
-    // ---- Infinity: BFF transacional ----
+    // ---- Tatico: BFF transacional ----
     if (!url.includes(BFF_PREFIX)) return;
 
     try {
@@ -178,9 +178,9 @@ export function attachNetworkCapture(page) {
     getAsb: (subType) => asb.get(String(subType)) ?? null,
     getTopaz: () => topaz,
     getApiCalls: () => [...apiCalls],
-    // Tatico
+    // Infinity
     getTatico: () => [...tatico],
-    /** Ultima resposta de lead do backend Tatico (a mais recente vence). */
+    /** Ultima resposta de lead do backend Infinity (a mais recente vence). */
     getTaticoLead: () => [...tatico].reverse().find((t) => t.tipo === 'lead') ?? null,
     getViaCep: () => viacep,
     getFeriados: () => feriados,

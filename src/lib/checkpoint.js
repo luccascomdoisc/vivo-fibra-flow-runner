@@ -183,7 +183,7 @@ export async function clickContinuarCompra(page, { timeout = 15000 } = {}) {
     return 'title';
   }
 
-  // Estrutural: nas telas do Tatico so existem "Voltar" e o botao de avanco.
+  // Estrutural: nas telas do Infinity so existem "Voltar" e o botao de avanco.
   const botoes = page.locator('button');
   const total = await botoes.count().catch(() => 0);
   for (let i = total - 1; i >= 0; i--) {
@@ -268,7 +268,7 @@ export async function marcarInput(page, inputLocator, { timeout = 8000 } = {}) {
 }
 
 /**
- * Aguarda a etapa do Tatico pela PRESENCA DO CAMPO exclusivo dela.
+ * Aguarda a etapa do Infinity pela PRESENCA DO CAMPO exclusivo dela.
  * Unico sinal confiavel: o <h1> e igual nas 4 telas e a URL nao muda (os paths
  * /dados, /endereco... sao virtuais, so existem no que o site manda ao GA).
  */
@@ -279,7 +279,7 @@ export async function waitForCampo(page, id, timeout) {
 /**
  * Aguarda um fragmento aparecer no location.pathname. Mantido para o caso de a
  * Vivo passar a navegar de verdade entre as etapas — hoje NAO serve como sinal
- * de avanco no Tatico (a URL fica em /checkouts/fibra/ do inicio ao fim).
+ * de avanco no Infinity (a URL fica em /checkouts/fibra/ do inicio ao fim).
  */
 export async function waitForRoute(page, fragmento, timeout) {
   await page.waitForFunction(
@@ -289,7 +289,7 @@ export async function waitForRoute(page, fragmento, timeout) {
   );
 }
 
-/** Marca um radio/checkbox do Tatico pelo atributo name (+ value opcional). */
+/** Marca um radio/checkbox do Infinity pelo atributo name (+ value opcional). */
 export async function marcarPorName(page, name, value = null, opts = {}) {
   const sel = value ? `input[name="${name}"][value="${value}"]` : `input[name="${name}"]`;
   return marcarInput(page, page.locator(sel), opts);

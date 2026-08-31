@@ -12,11 +12,11 @@ export async function runD(ctx) {
   const { net, state, config } = ctx;
   const start = Date.now();
 
-  // No Tatico nao existe chamada ao Topaz (recaptura 21/08: o antifraude nao
+  // No Infinity nao existe chamada ao Topaz (recaptura 21/08: o antifraude nao
   // aparece no checkout; quem responde a transacao e o asbb2c). Nao faz sentido
   // queimar 8s esperando algo que nunca vem.
   if (state.debug?.flow?.detected === 'novo') {
-    return makeResult('ok', start, null, 'Tatico; sem Topaz no checkout (observacional)');
+    return makeResult('ok', start, null, 'Infinity; sem Topaz no checkout (observacional)');
   }
 
   const deadline = Date.now() + Math.min(config.timeoutPorStepMs, 8000);
