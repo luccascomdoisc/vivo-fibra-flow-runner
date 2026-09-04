@@ -82,12 +82,15 @@ async function newInjectedContextMatchingBinary(browser, major) {
     timezoneId: 'America/Sao_Paulo',
     viewport: { width: 1366, height: 900 },
   };
-  const base = { devices: ['desktop'], operatingSystems: ['windows'], locales: ['pt-BR'] };
+  // strict: sem isso o header-generator "relaxa" as restricoes em silencio quando nao
+  // encontra a versao pedida (visto em 04/09: binario Chrome 148 -> UA Linux Chrome/142).
+  // Com strict ele lanca erro e a escada abaixo decide o proximo passo.
+  const base = { devices: ['desktop'], operatingSystems: ['windows'], locales: ['pt-BR'], strict: true };
 
   const attempts = [
     { name: 'chrome', minVersion: major, maxVersion: major },
     { name: 'chrome', minVersion: Math.max(major - 6, 100), maxVersion: major },
-    { name: 'chrome', minVersion: 135 }, // ultimo recurso: comportamento anterior
+    { name: 'chrome', minVersion: Math.max(major - 12, 100), maxVersion: major },
   ];
 
   let lastErr;

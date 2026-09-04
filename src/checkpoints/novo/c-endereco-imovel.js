@@ -1,6 +1,7 @@
 import { NOVO_IDS, NOVO_NAMES, NOVO_STEP_FIELDS } from '../../lib/constants.js';
 import {
   fillByIdVerified,
+  fillByIdOrLabel,
   clickContinuarCompra,
   coletarErrosValidacao,
   waitForCampo,
@@ -65,11 +66,15 @@ export async function runC_novo(ctx) {
     if (querEdificio) {
       const ok = await marcarPorName(page, NOVO_NAMES.tipoImovel, 'Edifício').catch(() => false);
       if (!ok) throw new Error('nao consegui selecionar tipo de imovel "Edifício"');
-      await fillByIdVerified(page, NOVO_IDS.andar, scenario.andar ?? '1');
+      // 04/09/2026: #Extra3 parou de aparecer (rotulo "Andar" segue na tela) -> fallback por rotulo.
+      const via = await fillByIdOrLabel(page, NOVO_IDS.andar, /^\s*andar/i, scenario.andar ?? '1');
+      if (via !== 'id') avisar(state, `campo Andar localizado por ${via} — o id #${NOVO_IDS.andar} mudou`);
     }
 
-    await fillByIdVerified(page, NOVO_IDS.complemento, scenario.complemento ?? '1');
-    await fillByIdVerified(page, NOVO_IDS.referencia, scenario.pontoReferencia ?? '1');
+    const viaComp = await fillByIdOrLabel(page, NOVO_IDS.complemento, /complemento/i, scenario.complemento ?? '1');
+    if (viaComp !== 'id') avisar(state, `campo Complemento localizado por ${viaComp} — o id #${NOVO_IDS.complemento} mudou`);
+    const viaRef = await fillByIdOrLabel(page, NOVO_IDS.referencia, /refer[eê]ncia/i, scenario.pontoReferencia ?? '1');
+    if (viaRef !== 'id') avisar(state, `campo Referencia localizado por ${viaRef} — o id #${NOVO_IDS.referencia} mudou`);
 
     screenshotUrl = await captureScreenshot(page, 'C', config.capturarScreenshots);
     const viaBotao = await clickContinuarCompra(page);

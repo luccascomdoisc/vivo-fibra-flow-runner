@@ -154,6 +154,40 @@ export async function fillByIdVerified(page, id, value, { timeout = 15000, tenta
 }
 
 /**
+ * Preenche um campo do Infinity localizando-o por id e, se o id nao aparecer,
+ * pelo ROTULO visivel (label/aria-label/placeholder). Criado em 04/09/2026: o campo
+ * "Andar" deixou de responder por #Extra3 (a tela ainda mostra o rotulo "Andar"),
+ * mesma classe de quebra dos botoes que mudaram de copy. Retorna 'id' | 'label'.
+ */
+export async function fillByIdOrLabel(page, id, labelRe, value, { idTimeout = 4000, timeout = 15000 } = {}) {
+  const byId = page.locator(`[id="${id}"]`).first();
+  const idVisivel = await byId.waitFor({ state: 'visible', timeout: idTimeout }).then(() => true).catch(() => false);
+  if (idVisivel) {
+    await fillByIdVerified(page, id, value, { timeout });
+    return 'id';
+  }
+
+  const candidatos = [
+    page.getByLabel(labelRe).first(),
+    page.getByPlaceholder(labelRe).first(),
+    page.getByRole('textbox', { name: labelRe }).first(),
+    // <label>Andar</label> seguido do input (irmao ou dentro do mesmo container)
+    page.locator('label').filter({ hasText: labelRe }).locator('xpath=following::input[1]').first(),
+  ];
+  for (const el of candidatos) {
+    const ok = await el.waitFor({ state: 'visible', timeout: 2500 }).then(() => true).catch(() => false);
+    if (!ok) continue;
+    await el.click();
+    await el.press('Control+a').catch(() => {});
+    await el.press('Delete').catch(() => {});
+    await el.pressSequentially(String(value ?? ''), { delay: jitter(40, 90) });
+    const dom = await el.inputValue().catch(() => '');
+    if (dom.trim() === String(value ?? '').trim()) return 'label';
+  }
+  throw new Error(`campo #${id} (rotulo ${labelRe}) nao encontrado nem por id nem por rotulo`);
+}
+
+/**
  * Clica o botao de avanco do fluxo novo. TRES estrategias em cascata, porque a
  * Vivo ja mexeu nas duas propriedades obvias deste botao:
  *   - jul/2026: texto "Continuar compra"; title ERRADO ("Volte para o passo anterior")
