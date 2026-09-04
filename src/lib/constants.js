@@ -124,7 +124,7 @@ export const NOVO_IDS = {
   uf: 'UF',
   cidade: 'Cidade',
   complemento: 'Complemento',
-  andar: 'Extra3', // campo "Andar": so existe com tipo de imovel = Edificio
+  andar: 'Andar', // campo "Andar": so existe com tipo de imovel = Edificio. Era 'Extra3' ate 04/09/2026.
   referencia: 'EntregaPontoReferencia',
   // etapa Agendamento (/agendamento)
   email: 'Mail',

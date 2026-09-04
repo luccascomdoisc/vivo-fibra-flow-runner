@@ -22,7 +22,7 @@ import { captureScreenshot } from '../../lib/screenshot.js';
  * Detalhes do site (recaptura 21/08):
  *  - #Numero reaparece ja preenchido com o valor digitado na etapa Dados.
  *  - Radio "Casa" vem pre-selecionado; "Edifício" (id com acento) cria o campo
- *    Andar (#Extra3). Radios sao customizados -> marcarPorName cuida do label.
+ *    Andar (#Andar; era #Extra3 ate 04/09/2026). Radios customizados -> marcarPorName.
  *  - Botao "Continuar compra" e type="button" e o title esta errado -> clicar por texto.
  *  - Form invalido nao navega: exibe validacao inline (coletada no detalhe).
  */
@@ -66,8 +66,8 @@ export async function runC_novo(ctx) {
     if (querEdificio) {
       const ok = await marcarPorName(page, NOVO_NAMES.tipoImovel, 'Edifício').catch(() => false);
       if (!ok) throw new Error('nao consegui selecionar tipo de imovel "Edifício"');
-      // 04/09/2026: #Extra3 parou de aparecer (rotulo "Andar" segue na tela) -> fallback por rotulo.
-      const via = await fillByIdOrLabel(page, NOVO_IDS.andar, /^\s*andar/i, scenario.andar ?? '1');
+      // 04/09/2026: o id mudou de #Extra3 para #Andar (inspecionado na pagina real).
+      const via = await fillByIdOrLabel(page, NOVO_IDS.andar, /^\s*andar\s*$/i, scenario.andar ?? '1', { legacyIds: ['Extra3'] });
       if (via !== 'id') avisar(state, `campo Andar localizado por ${via} — o id #${NOVO_IDS.andar} mudou`);
     }
 

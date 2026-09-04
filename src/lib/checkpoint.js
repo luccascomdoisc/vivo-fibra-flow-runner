@@ -159,7 +159,7 @@ export async function fillByIdVerified(page, id, value, { timeout = 15000, tenta
  * "Andar" deixou de responder por #Extra3 (a tela ainda mostra o rotulo "Andar"),
  * mesma classe de quebra dos botoes que mudaram de copy. Retorna 'id' | 'label'.
  */
-export async function fillByIdOrLabel(page, id, labelRe, value, { idTimeout = 4000, timeout = 15000 } = {}) {
+export async function fillByIdOrLabel(page, id, labelRe, value, { idTimeout = 4000, timeout = 15000, legacyIds = [] } = {}) {
   const byId = page.locator(`[id="${id}"]`).first();
   const idVisivel = await byId.waitFor({ state: 'visible', timeout: idTimeout }).then(() => true).catch(() => false);
   if (idVisivel) {
@@ -167,24 +167,29 @@ export async function fillByIdOrLabel(page, id, labelRe, value, { idTimeout = 40
     return 'id';
   }
 
+  // Estrutura real do Infinity (inspecionada em 04/09/2026): NAO ha <label>. O rotulo e
+  // um <span class="...title">Andar</span> IRMAO do <input>, dentro de uma <div>:
+  //   <div class="...inputData"><input id="Andar" name="Andar"/><span class="...title">Andar</span></div>
+  // Por isso a ordem: ids legados -> name -> span/label irmao -> getByLabel/placeholder/role.
   const candidatos = [
-    page.getByLabel(labelRe).first(),
-    page.getByPlaceholder(labelRe).first(),
-    page.getByRole('textbox', { name: labelRe }).first(),
-    // <label>Andar</label> seguido do input (irmao ou dentro do mesmo container)
-    page.locator('label').filter({ hasText: labelRe }).locator('xpath=following::input[1]').first(),
+    ...legacyIds.map((lid) => ({ via: `id-legado:${lid}`, loc: page.locator(`[id="${lid}"]`).first() })),
+    { via: `name:${id}`, loc: page.locator(`input[name="${id}"]`).first() },
+    { via: 'span-irmao', loc: page.locator('span, label, p').filter({ hasText: labelRe }).locator('xpath=../input[1]').first() },
+    { via: 'label', loc: page.getByLabel(labelRe).first() },
+    { via: 'placeholder', loc: page.getByPlaceholder(labelRe).first() },
+    { via: 'role', loc: page.getByRole('textbox', { name: labelRe }).first() },
   ];
-  for (const el of candidatos) {
-    const ok = await el.waitFor({ state: 'visible', timeout: 2500 }).then(() => true).catch(() => false);
+  for (const { via, loc } of candidatos) {
+    const ok = await loc.waitFor({ state: 'visible', timeout: 2000 }).then(() => true).catch(() => false);
     if (!ok) continue;
-    await el.click();
-    await el.press('Control+a').catch(() => {});
-    await el.press('Delete').catch(() => {});
-    await el.pressSequentially(String(value ?? ''), { delay: jitter(40, 90) });
-    const dom = await el.inputValue().catch(() => '');
-    if (dom.trim() === String(value ?? '').trim()) return 'label';
+    await loc.click();
+    await loc.press('Control+a').catch(() => {});
+    await loc.press('Delete').catch(() => {});
+    await loc.pressSequentially(String(value ?? ''), { delay: jitter(40, 90) });
+    const dom = await loc.inputValue().catch(() => '');
+    if (dom.trim() === String(value ?? '').trim()) return via;
   }
-  throw new Error(`campo #${id} (rotulo ${labelRe}) nao encontrado nem por id nem por rotulo`);
+  throw new Error(`campo #${id} (rotulo ${labelRe}) nao encontrado por id, name, rotulo irmao nem label`);
 }
 
 /**
