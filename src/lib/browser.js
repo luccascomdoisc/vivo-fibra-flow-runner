@@ -3,78 +3,134 @@ import { Actor, log } from 'apify';
 import { newInjectedContext } from 'fingerprint-injector';
 
 /**
- * Sobe um Chromium real com fingerprint INJETADO e coerente. O modo de proxy e
- * configuravel via input (config.proxyMode):
- *  - 'none'           -> sem proxy (IP direto do Actor na Apify). Mais barato.
- *  - 'datacenter'     -> Apify Proxy datacenter (grupo padrao).
- *  - 'residential-br' -> Apify Proxy residencial, countryCode BR.
- *  - 'residential-auto' -> Apify Proxy residencial sem pais fixo.
- *
- * loja.vivo.com.br esta atras do Akamai Bot Manager. Confirmado empiricamente: Playwright
- * cru (UA setado na mao, sem casar com Sec-CH-UA, sinais de headless) toma "Access Denied"
- * (403) em qualquer IP/proxy; ja o apify/rag-web-browser (que injeta fingerprint via
- * header-generator) pega a mesma URL com 200. Por isso usamos fingerprint-injector:
- * UA + Sec-CH-UA + navigator + webgl etc. todos consistentes (Windows/Chrome desktop).
+ * URL de warm-up padrao: a LP real de Fibra (mesma jornada do usuario). Antes era a
+ * raiz de loja.vivo.com.br, que responde 404 desde ago/2026 — o sensor do Akamai nem
+ * chegava a rodar ali. A LP fica em .vivo.com.br, entao os cookies (_abck / bm_sz)
+ * valem para loja.vivo.com.br, internet.vivo.com.br e checkout-portal.vivo.com.br.
  */
-export async function launchBrowser({ headless = true, proxyMode = 'none' } = {}) {
+export const WARMUP_URL_DEFAULT = 'https://internet.vivo.com.br/ofertas/fibra-e-pos/';
+
+/**
+ * Sobe um navegador REAL com fingerprint INJETADO e coerente.
+ *
+ * Historico do que o Akamai (Bot Manager) da Vivo aceitou e recusou:
+ *  - jun/2026: Playwright cru (UA na mao, sinais de headless) -> 403 em qualquer IP.
+ *    Chromium + fingerprint-injector -> 200. Conclusao: o que decide e coerencia de
+ *    fingerprint, nao IP.
+ *  - 04/09/2026: a Vivo passou a redirecionar o cadastro para um host novo,
+ *    checkout-portal.vivo.com.br, com politica mais dura. O mesmo Chromium headless +
+ *    fingerprint-injector que passava em internet.vivo.com.br tomou Access Denied ali,
+ *    tanto com IP de datacenter quanto com proxy residencial BR (testado). Um Chrome
+ *    real, do IP de um humano, carregou a pagina normalmente. Ou seja: o bloqueio e na
+ *    borda (TLS/HTTP2/headers), e o suspeito e o binario — Chromium "headless-shell" do
+ *    Playwright anunciando UA de Chrome 145 (mismatch UA x motor real).
+ *
+ * Por isso, agora:
+ *  1. Preferimos o Google Chrome estavel que a imagem apify/actor-node-playwright-chrome
+ *     ja traz (channel 'chrome'), com fallback para o Chromium do Playwright.
+ *  2. O fingerprint gerado e TRAVADO na versao major do binario real (browser.version()),
+ *     para UA, Sec-CH-UA e navigator.userAgentData baterem com o TLS/HTTP2 do motor.
+ *
+ * config.browserChannel: 'chrome' (padrao) | 'chromium'.
+ * config.proxyMode: 'none' | 'datacenter' | 'residential-br' | 'residential-auto'.
+ */
+export async function launchBrowser({ headless = true, proxyMode = 'none', browserChannel = 'chrome' } = {}) {
   const proxy = await resolveProxy(proxyMode);
 
-  const browser = await chromium.launch({
-    headless,
-    proxy,
-    args: [
-      '--disable-blink-features=AutomationControlled',
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-  });
+  const args = [
+    '--disable-blink-features=AutomationControlled',
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
+  ];
 
-  const context = await newInjectedContext(browser, {
-    fingerprintOptions: {
-      devices: ['desktop'],
-      operatingSystems: ['windows'],
-      // minVersion alto: o gerador pode sortear versoes proximas do minimo, e um
-      // Chrome 119/120 (2023) e flag na certa para o Akamai (visto na pratica: run
-      // com UA Chrome/120 tomou Access Denied; com Chrome/145 passou).
-      browsers: [{ name: 'chrome', minVersion: 135 }],
-      locales: ['pt-BR'],
-    },
-    newContextOptions: {
-      locale: 'pt-BR',
-      timezoneId: 'America/Sao_Paulo',
-      viewport: { width: 1366, height: 900 },
-    },
-  });
+  const { browser, channelUsed } = await launchWithFallback({ headless, proxy, args, browserChannel });
+
+  const version = browser.version(); // ex.: "140.0.7339.80"
+  const major = Number.parseInt(version.split('.')[0], 10);
+  log.info(`Navegador: ${channelUsed} ${version} (headless=${headless})`);
+
+  const context = await newInjectedContextMatchingBinary(browser, major);
 
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
-  return { browser, context, page };
+  return { browser, context, page, browserInfo: { channel: channelUsed, version } };
+}
+
+/** Tenta o canal pedido; se nao existir na imagem, cai para o Chromium do Playwright. */
+async function launchWithFallback({ headless, proxy, args, browserChannel }) {
+  if (browserChannel === 'chrome') {
+    try {
+      const browser = await chromium.launch({ headless, proxy, args, channel: 'chrome' });
+      return { browser, channelUsed: 'chrome' };
+    } catch (e) {
+      log.warning(`Google Chrome indisponivel (channel 'chrome'); usando Chromium do Playwright. Motivo: ${e.message}`);
+    }
+  }
+  const browser = await chromium.launch({ headless, proxy, args });
+  return { browser, channelUsed: 'chromium' };
 }
 
 /**
- * Warm-up anti-Akamai: visita a raiz de loja.vivo.com.br para que o sensor do Akamai
- * Bot Manager execute e sete os cookies de sessao (_abck / bm_sz) ANTES de irmos ao
- * deep-link de cadastro. Sem isso, bater direto na URL profunda como 1a request do
- * browser resulta em "Access Denied" do Akamai (edgesuite). Best-effort: nunca derruba
- * o fluxo — se o warm-up falhar, o checkpoint A ainda tenta e reporta o que achar.
+ * Cria o contexto com fingerprint coerente com o binario real. Primeiro tenta travar
+ * exatamente no major do navegador; se o dataset do gerador ainda nao tiver essa versao
+ * (binario muito novo), relaxa para "proximo do major, sem passar dele" — anunciar uma
+ * versao MAIOR que a do motor e o pior caso (mismatch), entao maxVersion e sempre o major.
  */
-export async function warmUpAkamai(page, { timeout = 30000 } = {}) {
-  const diag = { status: null, title: null, abck: false, error: null };
+async function newInjectedContextMatchingBinary(browser, major) {
+  const newContextOptions = {
+    locale: 'pt-BR',
+    timezoneId: 'America/Sao_Paulo',
+    viewport: { width: 1366, height: 900 },
+  };
+  const base = { devices: ['desktop'], operatingSystems: ['windows'], locales: ['pt-BR'] };
+
+  const attempts = [
+    { name: 'chrome', minVersion: major, maxVersion: major },
+    { name: 'chrome', minVersion: Math.max(major - 6, 100), maxVersion: major },
+    { name: 'chrome', minVersion: 135 }, // ultimo recurso: comportamento anterior
+  ];
+
+  let lastErr;
+  for (const spec of attempts) {
+    try {
+      const ctx = await newInjectedContext(browser, {
+        fingerprintOptions: { ...base, browsers: [spec] },
+        newContextOptions,
+      });
+      log.info(`Fingerprint: chrome ${spec.minVersion}${spec.maxVersion ? `-${spec.maxVersion}` : '+'} (binario major=${major})`);
+      return ctx;
+    } catch (e) {
+      lastErr = e;
+      log.warning(`Fingerprint chrome ${spec.minVersion}-${spec.maxVersion ?? '∞'} indisponivel: ${e.message}`);
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Warm-up anti-Akamai: navegacao REAL (nao fetch) por uma pagina em .vivo.com.br para
+ * o sensor do Bot Manager rodar e setar _abck / bm_sz ANTES do deep-link de cadastro.
+ * Inclui movimento de mouse e scroll leve (o sensor coleta esses eventos). Best-effort:
+ * nunca derruba o fluxo — se falhar, o checkpoint A ainda tenta e reporta o que achar.
+ */
+export async function warmUpAkamai(page, { timeout = 30000, url = WARMUP_URL_DEFAULT } = {}) {
+  const diag = { url, status: null, title: null, abck: false, bmsz: false, error: null };
   try {
-    const resp = await page.goto('https://loja.vivo.com.br/', {
-      waitUntil: 'domcontentloaded',
-      timeout,
-    });
+    const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
     diag.status = resp?.status() ?? null;
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
-    // Interacao leve: o sensor Akamai coleta eventos de mouse/movimento para validar.
-    await page.mouse.move(220, 240).catch(() => {});
-    await page.mouse.move(480, 520).catch(() => {});
-    await page.waitForTimeout(2500);
+    // Interacao leve e "humana": mouse em curva + scroll curto + pausa.
+    await page.mouse.move(180, 210).catch(() => {});
+    await page.mouse.move(420, 330, { steps: 12 }).catch(() => {});
+    await page.mouse.wheel(0, 320).catch(() => {});
+    await page.waitForTimeout(1200);
+    await page.mouse.move(640, 480, { steps: 10 }).catch(() => {});
+    await page.waitForTimeout(1800);
     diag.title = await page.title().catch(() => null);
-    const cookies = await page.context().cookies('https://loja.vivo.com.br').catch(() => []);
+    const cookies = await page.context().cookies().catch(() => []);
     diag.abck = cookies.some((c) => c.name === '_abck');
-    log.info(`Warm-up Akamai: status=${diag.status} title="${diag.title}" _abck=${diag.abck}`);
+    diag.bmsz = cookies.some((c) => c.name === 'bm_sz');
+    log.info(`Warm-up Akamai: url=${url} status=${diag.status} title="${diag.title}" _abck=${diag.abck} bm_sz=${diag.bmsz}`);
   } catch (e) {
     diag.error = e.message;
     log.warning(`Warm-up Akamai falhou (seguindo mesmo assim): ${e.message}`);

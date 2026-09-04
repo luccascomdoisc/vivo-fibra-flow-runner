@@ -33,6 +33,10 @@ export async function runFlow(input) {
     headless: input.config?.headless ?? true,
     proxyMode: input.config?.proxyMode ?? 'none',
     warmup: input.config?.warmup ?? true,
+    // 04/09/2026: Chrome real (imagem ja traz google-chrome) em vez do Chromium
+    // headless-shell do Playwright; ver browser.js. 'chromium' volta ao anterior.
+    browserChannel: input.config?.browserChannel ?? 'chrome',
+    warmupUrl: input.config?.warmupUrl ?? undefined,
   };
 
   const results = emptyResults();
@@ -42,7 +46,7 @@ export async function runFlow(input) {
     orderNumber: null,
     topazScore: null,
     error: null,
-    debug: { proxyMode: config.proxyMode, userAgent: null, warmup: null, flow: null, avisos: [] },
+    debug: { proxyMode: config.proxyMode, browser: null, userAgent: null, warmup: null, flow: null, avisos: [] },
   };
 
   // ---- Checkpoint Z (HTTP, sem browser) ----
@@ -57,15 +61,22 @@ export async function runFlow(input) {
   // ---- Browser: A..F ----
   let browser;
   try {
-    const launched = await launchBrowser({ headless: config.headless, proxyMode: config.proxyMode });
+    const launched = await launchBrowser({
+      headless: config.headless,
+      proxyMode: config.proxyMode,
+      browserChannel: config.browserChannel,
+    });
     browser = launched.browser;
     const { page } = launched;
+    state.debug.browser = launched.browserInfo;
     const net = attachNetworkCapture(page);
 
     state.debug.userAgent = await page.evaluate(() => navigator.userAgent).catch(() => null);
 
     // Warm-up anti-Akamai antes de tocar no deep-link de cadastro (ver browser.js).
-    if (config.warmup) state.debug.warmup = await warmUpAkamai(page, { timeout: config.timeoutPorStepMs });
+    if (config.warmup) {
+      state.debug.warmup = await warmUpAkamai(page, { timeout: config.timeoutPorStepMs, url: config.warmupUrl });
+    }
 
     // Navega e detecta qual fluxo a Vivo serviu (checkout novo/Infinity vs Tatico).
     // A entryUrl continua a mesma: quando o fluxo novo esta ativo, a Vivo redireciona
@@ -89,7 +100,7 @@ export async function runFlow(input) {
         status: 'fail',
         durationMs: 0,
         screenshotUrl: diag?.screenshotUrl ?? null,
-        detalhe: `BLOQUEIO ANTI-BOT (Akamai Access Denied) — nao e instabilidade do funil. Sugestao: retry com proxyMode residential-br. || url=${diag?.url}`,
+        detalhe: `BLOQUEIO ANTI-BOT (Akamai Access Denied) — nao e instabilidade do funil (usuario real carrega a pagina). Proxy nao resolve (testado 04/09). Verificar browserChannel/fingerprint. || url=${diag?.url}`,
       });
       state.error = 'Bloqueio anti-bot (Akamai) na entrada do funil.';
       return buildOutput({ runStartedAt, results, ...state, scenario });

@@ -1,4 +1,9 @@
 import { log } from 'apify';
+import { WARMUP_URL_DEFAULT } from './browser.js';
+
+/** Hosts/paths do checkout novo (Infinity). 04/09/2026: a Vivo passou a redirecionar
+ *  tambem para checkout-portal.vivo.com.br/para-voce/fibra/<id>?offers=<offer>. */
+const NOVO_URL_RE = /\/checkouts\/fibra|checkout-portal\.vivo\.com\.br/i;
 
 /**
  * Navega ate a entryUrl e detecta qual fluxo a Vivo serviu.
@@ -13,10 +18,12 @@ import { log } from 'apify';
  * Retorna { flow: 'novo' | 'antigo' | 'desconhecido', finalUrl, marker }.
  */
 export async function navigateAndDetect(page, entryUrl, { timeout = 30000, fallbackUrl = null } = {}) {
+  // Referer = LP real de Fibra (a mesma pagina do warm-up), como um usuario que clicou
+  // no card. Antes era a raiz da loja, que responde 404.
   await page.goto(entryUrl, {
     waitUntil: 'domcontentloaded',
     timeout,
-    referer: 'https://loja.vivo.com.br/',
+    referer: WARMUP_URL_DEFAULT,
   });
 
   // Bloqueio anti-bot do Akamai na entrada legada (loja.vivo.com.br): nao e "site
@@ -66,22 +73,33 @@ export async function navigateAndDetect(page, entryUrl, { timeout = 30000, fallb
     await new Promise((r) => setTimeout(r, 500));
   }
 
+  // Se nenhum marcador apareceu, re-checa o Akamai: a pagina "Access Denied" pode ter
+  // sido servida depois de um redirect que ainda nao tinha assentado na 1a checagem
+  // (04/09/2026: run das 12h saiu como "desconhecido" com title "Access Denied").
+  if (flow === 'desconhecido' && (await isAkamaiDenied(page))) {
+    return { flow: 'bloqueado_akamai', finalUrl: page.url(), marker: 'Access Denied (edgesuite, pos-hidratacao)', urlNovo: false };
+  }
+
   // Confirmacao secundaria pela URL final (nao decide sozinha, so enriquece o debug).
   const finalUrl = page.url();
-  const urlNovo = finalUrl.includes('/checkouts/fibra');
+  const urlNovo = NOVO_URL_RE.test(finalUrl);
 
-  log.info(`Deteccao de fluxo: ${flow} (url=${urlNovo ? 'checkouts/fibra' : 'legado'}; marker=${marker ?? 'nenhum'})`);
+  log.info(`Deteccao de fluxo: ${flow} (url=${urlNovo ? 'checkout novo' : 'legado'}; host=${safeHost(finalUrl)}; marker=${marker ?? 'nenhum'})`);
   return { flow, finalUrl, marker, urlNovo };
 }
 
-/** Pagina de negacao do Akamai Bot Manager (edgesuite). */
+/** Pagina de negacao do Akamai Bot Manager (edgesuite), em qualquer host. */
 async function isAkamaiDenied(page) {
   try {
-    const title = await page.title();
+    const title = await page.title().catch(() => '');
     if (/access denied/i.test(title)) return true;
-    const body = await page.locator('body').innerText({ timeout: 2000 });
-    return /access denied/i.test(body) && /edgesuite|reference #/i.test(body);
+    const body = await page.evaluate(() => document.body?.innerText ?? '').catch(() => '');
+    return /access denied/i.test(body) && /edgesuite|reference\s*#/i.test(body);
   } catch {
     return false;
   }
+}
+
+function safeHost(u) {
+  try { return new URL(u).host; } catch { return '?'; }
 }

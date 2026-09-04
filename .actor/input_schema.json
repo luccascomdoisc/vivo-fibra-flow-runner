@@ -30,20 +30,21 @@
       "prefill": {
         "productsIds": "235",
         "promotion": "600",
-        "checkoutUrl": "https://internet.vivo.com.br/checkouts/fibra/?id=a2ee717126ca&offer=1778d9c8c0d3"
+        "checkoutUrl": "https://checkout-portal.vivo.com.br/para-voce/fibra/a2ee717126ca?offers=1778d9c8c0d3"
       }
     },
     "config": {
       "title": "Configuracao de execucao",
       "type": "object",
-      "description": "Parametros de execucao: timeout por step (ms), captura de screenshots, modo headless, proxyMode (none | datacenter | residential-br | residential-auto) e warmup (visita loja.vivo.com.br antes do deep-link p/ passar o Akamai).",
+      "description": "Parametros de execucao: timeout por step (ms), captura de screenshots, modo headless, proxyMode (none | datacenter | residential-br | residential-auto), warmup (navega pela LP de Fibra antes do deep-link p/ o sensor do Akamai rodar; warmupUrl opcional) e browserChannel (chrome = Google Chrome real da imagem, padrao | chromium = Chromium do Playwright, comportamento anterior).",
       "editor": "json",
       "prefill": {
         "timeoutPorStepMs": 30000,
         "capturarScreenshots": true,
         "headless": true,
         "proxyMode": "none",
-        "warmup": true
+        "warmup": true,
+        "browserChannel": "chrome"
       }
     }
   },
